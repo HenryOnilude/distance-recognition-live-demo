@@ -108,6 +108,7 @@ async def analyze_frame(file: UploadFile = File(...)):
         result = recognition_system.process_frame_analysis(
             face_bbox=largest_face,
             face_image=face_region,
+            full_image=image_cv,
             image_shape=image_cv.shape[:2]
         )
 

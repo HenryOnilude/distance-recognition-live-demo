@@ -341,7 +341,7 @@ class HybridFaceRecognitionSystem:
             }
 
     def process_frame_analysis(self, face_bbox: Tuple[int, int, int, int],
-                              face_image, image_shape: Tuple[int, int]) -> Dict:
+                              face_image, full_image=None, image_shape: Tuple[int, int]) -> Dict:
         """
         Complete frame analysis with real DeepFace + distance research
 

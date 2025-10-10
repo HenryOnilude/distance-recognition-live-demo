@@ -57,7 +57,7 @@ class InsightFaceFaceRecognitionSystem:
             return "far"
 
     def get_insightface_predictions(self, face_image):
-        """Get predictions from InsightFace for age, gender"""
+        """Get predictions from InsightFace for age, gender with enhanced detection"""
         try:
             # Ensure image is in correct format
             if len(face_image.shape) == 3 and face_image.shape[2] == 3:
@@ -66,28 +66,74 @@ class InsightFaceFaceRecognitionSystem:
             else:
                 face_image_rgb = face_image
 
-            # Run InsightFace analysis
+            # Strategy 1: Try with original image first
             faces = self.app.get(face_image_rgb)
 
             if len(faces) == 0:
-                logger.warning("No faces detected by InsightFace")
+                # Strategy 2: Try with enhanced preprocessing
+                logger.info("First attempt failed, trying enhanced preprocessing...")
+
+                # Resize image if too small (InsightFace works better with larger images)
+                height, width = face_image_rgb.shape[:2]
+                if height < 224 or width < 224:
+                    scale = max(224/height, 224/width) * 1.5  # Extra scaling for better detection
+                    new_height, new_width = int(height * scale), int(width * scale)
+                    face_image_rgb = cv2.resize(face_image_rgb, (new_width, new_height),
+                                              interpolation=cv2.INTER_CUBIC)
+                    logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height}")
+
+                # Apply contrast enhancement
+                lab = cv2.cvtColor(face_image_rgb, cv2.COLOR_RGB2LAB)
+                l, a, b = cv2.split(lab)
+                clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                l = clahe.apply(l)
+                enhanced_rgb = cv2.merge([l, a, b])
+                enhanced_rgb = cv2.cvtColor(enhanced_rgb, cv2.COLOR_LAB2RGB)
+
+                # Try detection again with enhanced image
+                faces = self.app.get(enhanced_rgb)
+
+                if len(faces) == 0:
+                    # Strategy 3: Try with different detection size
+                    logger.info("Enhanced preprocessing failed, trying different detection settings...")
+
+                    # Temporarily change detection size for this image
+                    original_det_size = self.app.det_model.input_size
+                    self.app.prepare(ctx_id=0, det_size=(320, 320))  # Smaller detection size
+                    faces = self.app.get(enhanced_rgb)
+
+                    # Restore original detection size
+                    self.app.prepare(ctx_id=0, det_size=original_det_size)
+
+            if len(faces) == 0:
+                logger.warning("No faces detected by InsightFace after all strategies")
                 return {
                     'age': 25,
                     'gender': 0.5,  # 0 = female, 1 = male, 0.5 = uncertain
                     'confidence': 0.3
                 }
 
-            # Use the first (largest) face
+            # Use the largest face (most likely to be the main subject)
+            if len(faces) > 1:
+                faces = sorted(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]), reverse=True)
+
             face = faces[0]
 
             # Extract age and gender with confidence
             age = face.age if hasattr(face, 'age') else 25
             gender_score = face.gender if hasattr(face, 'gender') else 0.5  # 0=female, 1=male
 
-            # Calculate confidence based on face quality
+            # Calculate confidence based on face quality and detection score
             bbox = face.bbox
             face_area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
-            confidence = min(0.95, max(0.6, face_area / (face_image.shape[0] * face_image.shape[1])))
+            base_confidence = min(0.95, max(0.6, face_area / (face_image.shape[0] * face_image.shape[1])))
+
+            # Boost confidence if we have detection score
+            if hasattr(face, 'det_score'):
+                detection_confidence = float(face.det_score)
+                confidence = min(0.95, base_confidence * (0.5 + 0.5 * detection_confidence))
+            else:
+                confidence = base_confidence
 
             logger.info(f"InsightFace prediction: Age={age}, Gender={gender_score:.3f}, Confidence={confidence:.3f}")
 
@@ -213,7 +259,7 @@ class InsightFaceFaceRecognitionSystem:
             return prediction_confidence
 
     def process_frame_analysis(self, face_bbox: Tuple[int, int, int, int],
-                              face_image, image_shape: Tuple[int, int]) -> Dict:
+                              face_image, full_image, image_shape: Tuple[int, int]) -> Dict:
         """Complete frame analysis with InsightFace"""
         start_time = time.time()
 
@@ -228,7 +274,7 @@ class InsightFaceFaceRecognitionSystem:
             quality_score = calculate_quality_score(face_image)
 
             # Step 3: InsightFace predictions
-            insightface_results = self.get_insightface_predictions(face_image)
+            insightface_results = self.get_insightface_predictions(full_image)
 
             # Step 4: Apply distance-adaptive adjustments
             predictions = {}

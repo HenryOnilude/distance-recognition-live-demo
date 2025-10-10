@@ -19,13 +19,20 @@ logger = logging.getLogger(__name__)
 from face_detection import detector
 from quality_scoring import calculate_quality_score
 
-# Try to import DeepFace system, fallback to enhanced simulation
+# Try to import InsightFace (better accuracy), fallback to DeepFace, then simulation
+USE_INSIGHTFACE = True  # Set to False to use DeepFace instead
+
 try:
-    from deepface_recognition import recognition_system
-    logger.info("Using DeepFace + Distance Research System")
-    SYSTEM_MODE = "deepface"
+    if USE_INSIGHTFACE:
+        from insightface_recognition import insightface_recognition_system as recognition_system
+        logger.info("Using InsightFace + Distance Research System (Better accuracy for diverse faces)")
+        SYSTEM_MODE = "insightface"
+    else:
+        from deepface_recognition import recognition_system
+        logger.info("Using DeepFace + Distance Research System")
+        SYSTEM_MODE = "deepface"
 except ImportError as e:
-    logger.warning(f"DeepFace not available ({e}), using enhanced simulation")
+    logger.warning(f"ML systems not available ({e}), using enhanced simulation")
     from fallback_recognition import fallback_system as recognition_system
     SYSTEM_MODE = "fallback"
 

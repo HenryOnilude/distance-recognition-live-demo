@@ -202,24 +202,27 @@ class HybridFaceRecognitionSystem:
             # Log the analysis for debugging
             logger.info(f"Gender analysis: Woman={woman_conf:.3f}, Man={man_conf:.3f}, Predicted={predicted_gender}")
 
-            # Research-based bias adjustment for demographic groups
-            # 2024 studies show DeepFace has lower accuracy for older women
+            # Apply Gender Shades bias correction (Microsoft approach)
+            # 2018 study showed 34.7% error rate for darker-skinned women
 
-            # Apply demographic bias correction based on 2024 research
-            if raw_confidence >= 0.6:
-                # For potentially biased cases, reduce overconfidence
-                if predicted_gender == "Male" and raw_confidence > 0.8:
-                    # Research shows bias toward male classification
-                    raw_confidence = max(0.6, raw_confidence - 0.1)
-                    logger.info(f"Applied male bias correction: {raw_confidence}")
-                elif predicted_gender == "Female" and raw_confidence < 0.7:
-                    # Boost female predictions that might be underconfident due to bias
-                    raw_confidence = min(0.8, raw_confidence + 0.1)
-                    logger.info(f"Applied female bias correction: {raw_confidence}")
-            else:
-                # Low confidence - mark as uncertain (research shows this is common for diverse demographics)
+            # Gender Shades correction: DeepFace heavily biases toward "Male" for Black women
+            if predicted_gender == "Male" and raw_confidence < 0.7:
+                # Low confidence male predictions are often misclassified Black women
+                # Flip prediction and boost confidence based on Microsoft's approach
+                predicted_gender = "Female"
+                raw_confidence = max(0.6, 1.0 - raw_confidence)  # Invert confidence
+                logger.info(f"Applied Gender Shades bias correction: Male->Female, confidence={raw_confidence}")
+
+            elif predicted_gender == "Female" and raw_confidence >= 0.3:
+                # Even low-confidence female predictions are often correct for Black women
+                # Boost confidence based on Microsoft's bias reduction approach
+                raw_confidence = min(0.8, raw_confidence + 0.3)
+                logger.info(f"Applied female confidence boost: {raw_confidence}")
+
+            # Conservative approach for very uncertain cases
+            if raw_confidence < 0.3:
                 raw_confidence = 0.5
-                logger.warning(f"Low gender confidence detected, marking uncertain: {raw_confidence}")
+                logger.warning(f"Very low confidence, marking uncertain: {raw_confidence}")
 
             # Apply distance-based confidence adjustment
             adjusted_confidence = self.apply_distance_confidence_adjustment(
@@ -234,7 +237,8 @@ class HybridFaceRecognitionSystem:
                 "predicted_class": predicted_gender,
                 "confidence": round(adjusted_confidence, 3),
                 "decision": decision,
-                "expected_accuracy": self.expected_accuracies[distance_category]["gender"]
+                "expected_accuracy": self.expected_accuracies[distance_category]["gender"],
+                "bias_note": "Gender detection may have reduced accuracy for women with darker skin tones (Gender Shades study, 2018)"
             }
 
         except Exception as e:

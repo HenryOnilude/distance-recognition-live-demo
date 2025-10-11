@@ -163,8 +163,15 @@ class InsightFaceFaceRecognitionSystem:
     def process_gender_prediction(self, gender_score: float, confidence: float, distance_category: str, quality_score: float):
         """Process gender prediction from InsightFace - TRUST THE MODEL"""
         try:
-            # FIXED: InsightFace encoding: 0=male, 1=female
-            predicted_gender = "Male" if gender_score < 0.5 else "Female"
+            # CRITICAL DEBUG: Log raw gender score to determine correct encoding
+            logger.critical(f"RAW GENDER SCORE: {gender_score:.6f}")
+            logger.critical(f"If 0=Male,1=Female: {gender_score:.3f} < 0.5 = Male, >= 0.5 = Female")
+            logger.critical(f"If 1=Male,0=Female: {gender_score:.3f} >= 0.5 = Male, < 0.5 = Female")
+            
+            # TESTING: Try INVERTED encoding (1=Male, 0=Female) - opposite of documentation
+            # If this works correctly, InsightFace encoding is opposite of documented
+            predicted_gender = "Female" if gender_score < 0.5 else "Male"
+            logger.critical(f"USING INVERTED ENCODING (1=Male, 0=Female): score={gender_score:.3f} -> {predicted_gender}")
 
             # Calculate confidence based on how far from 0.5 the score is
             raw_confidence = abs(gender_score - 0.5) * 2 * confidence  # Scale to 0-1

@@ -87,4 +87,10 @@ logs/
 
 # Temporary files
 *.tmp
-*.temp
+*.temp# Large model files
+distance-recognition-demo/backend/models/*.caffemodel
+distance-recognition-demo/backend/models/*.onnx
+distance-recognition-demo/backend/models/*.pkl
+distance-recognition-demo/backend/models/*.bin
+*.h5
+*.weights

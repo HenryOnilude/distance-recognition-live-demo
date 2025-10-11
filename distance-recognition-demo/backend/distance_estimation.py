@@ -35,7 +35,7 @@ def estimate_distance_from_face_size(face_bbox: Tuple[int, int, int, int],
         distance_m = distance_cm / 100.0
 
         # Clamp to reasonable range based on research
-        MIN_DISTANCE = 1.5  # Too close causes distortion
+        MIN_DISTANCE = 0.5  # Allow closer distances for portraits (50cm)
         MAX_DISTANCE = 15.0  # Beyond this, face too small for reliable detection
 
         distance_m = max(MIN_DISTANCE, min(distance_m, MAX_DISTANCE))

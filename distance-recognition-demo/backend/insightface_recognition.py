@@ -113,12 +113,11 @@ class InsightFaceFaceRecognitionSystem:
 
             if len(faces) == 0:
                 logger.warning("No faces detected by InsightFace after all strategies")
-                # Apply bias correction even to fallback: assume Female for uncertain cases
-                # This addresses Gender Shades bias where young women are often missed
+                # TRANSPARENCY FIX: Use neutral values for genuine uncertainty
                 return {
-                    'age': 25,
-                    'gender': 0.3,  # Lean toward female for uncertain cases (bias correction)
-                    'confidence': 0.6  # Higher confidence since we're applying bias correction
+                    'age': 30,  # Neutral age estimate
+                    'gender': 0.5,  # Neutral gender score (exactly between male/female)
+                    'confidence': 0.1  # LOW confidence - indicates system uncertainty
                 }
 
             # Use the largest face (most likely to be the main subject)
@@ -129,7 +128,14 @@ class InsightFaceFaceRecognitionSystem:
 
             # Extract age and gender with confidence
             age = face.age if hasattr(face, 'age') else 25
-            gender_score = face.gender if hasattr(face, 'gender') else 0.5  # ACTUAL: 0=male, 1=female
+
+            # CRITICAL FIX: Check for both 'gender' and 'sex' attributes
+            if hasattr(face, 'gender'):
+                gender_score = face.gender
+            elif hasattr(face, 'sex'):
+                gender_score = face.sex
+            else:
+                gender_score = 0.5  # ACTUAL: 0=male, 1=female
 
             # Calculate confidence based on face quality and detection score
             bbox = face.bbox
@@ -153,25 +159,40 @@ class InsightFaceFaceRecognitionSystem:
 
         except Exception as e:
             logger.error(f"InsightFace analysis failed: {e}")
-            # Apply bias correction even to error fallback: assume Female for uncertain cases
+            # TRANSPARENCY FIX: Use neutral values for system errors
             return {
-                'age': 25,
-                'gender': 0.3,  # Lean toward female for uncertain cases (bias correction)
-                'confidence': 0.6  # Higher confidence since we're applying bias correction
+                'age': 30,  # Neutral age estimate
+                'gender': 0.5,  # Neutral gender score (exactly between male/female)
+                'confidence': 0.1  # LOW confidence - indicates system error
             }
 
     def process_gender_prediction(self, gender_score: float, confidence: float, distance_category: str, quality_score: float):
         """Process gender prediction from InsightFace - TRUST THE MODEL"""
         try:
-            # CRITICAL DEBUG: Log raw gender score to determine correct encoding
-            logger.critical(f"RAW GENDER SCORE: {gender_score:.6f}")
-            logger.critical(f"If 0=Male,1=Female: {gender_score:.3f} < 0.5 = Male, >= 0.5 = Female")
-            logger.critical(f"If 1=Male,0=Female: {gender_score:.3f} >= 0.5 = Male, < 0.5 = Female")
+            # ERROR BOUNDARY: Validate inputs
+            if not isinstance(gender_score, (int, float)) or not isinstance(confidence, (int, float)):
+                raise ValueError(f"Invalid input types: gender_score={type(gender_score)}, confidence={type(confidence)}")
+
+            if not (0 <= gender_score <= 1) or not (0 <= confidence <= 1):
+                logger.warning(f"Gender/confidence out of range: {gender_score:.3f}, {confidence:.3f}")
+                gender_score = max(0, min(1, gender_score))
+                confidence = max(0, min(1, confidence))
+            # DEBUG: Log raw gender score
+            logger.info(f"RAW GENDER SCORE: {gender_score:.6f}")
             
-            # TESTING: Try INVERTED encoding (1=Male, 0=Female) - opposite of documentation
-            # If this works correctly, InsightFace encoding is opposite of documented
-            predicted_gender = "Female" if gender_score < 0.5 else "Male"
-            logger.critical(f"USING INVERTED ENCODING (1=Male, 0=Female): score={gender_score:.3f} -> {predicted_gender}")
+            # CORRECT ENCODING: InsightFace 0=Male, 1=Female (standard encoding)
+            raw_predicted_gender = "Male" if gender_score < 0.5 else "Female"
+            logger.info(f"Using CORRECT encoding (0=Male, 1=Female): score={gender_score:.3f} -> {raw_predicted_gender}")
+
+            # Trust the SCRFD model predictions - use standard encoding (0=Male, 1=Female)
+            predicted_gender = raw_predicted_gender
+
+            # BIAS DETECTION: Log cases where the model may be exhibiting bias
+            # For very confident predictions that may be systematically wrong
+            if abs(gender_score - 0.5) > 0.4:  # Very confident predictions (>90% or <10%)
+                logger.warning(f"⚠️ High confidence {raw_predicted_gender} prediction (score={gender_score:.3f})")
+                logger.warning(f"   If this seems incorrect, the model may have bias for this facial type")
+                logger.warning(f"   Consider reporting incorrect predictions to improve the system")
 
             # Calculate confidence based on how far from 0.5 the score is
             raw_confidence = abs(gender_score - 0.5) * 2 * confidence  # Scale to 0-1
@@ -211,6 +232,19 @@ class InsightFaceFaceRecognitionSystem:
     def process_age_prediction(self, age_value: int, confidence: float, distance_category: str, quality_score: float):
         """Process age prediction from InsightFace"""
         try:
+            # ERROR BOUNDARY: Validate inputs
+            if not isinstance(age_value, (int, float)) or not isinstance(confidence, (int, float)):
+                raise ValueError(f"Invalid input types: age_value={type(age_value)}, confidence={type(confidence)}")
+
+            # Clamp age to reasonable range
+            if age_value < 1 or age_value > 120:
+                logger.warning(f"Age out of reasonable range: {age_value}, clamping to 1-120")
+                age_value = max(1, min(120, age_value))
+
+            # Clamp confidence
+            if not (0 <= confidence <= 1):
+                logger.warning(f"Confidence out of range: {confidence:.3f}")
+                confidence = max(0, min(1, confidence))
             # Convert continuous age to binary classification
             if age_value <= 40:
                 predicted_age_group = "Young"
@@ -273,7 +307,8 @@ class InsightFaceFaceRecognitionSystem:
             return prediction_confidence
 
     def process_frame_analysis(self, face_bbox: Tuple[int, int, int, int],
-                              face_image, full_image, image_shape: Tuple[int, int]) -> Dict:
+                              face_image, full_image, image_shape: Tuple[int, int],
+                              face_data: Dict = None) -> Dict:
         """Complete frame analysis with InsightFace"""
         start_time = time.time()
 
@@ -290,12 +325,33 @@ class InsightFaceFaceRecognitionSystem:
             logger.info(f"BRISQUE quality assessment: {quality_score:.3f}")
 
             # Step 3: Distance-adaptive preprocessing
-            # Apply CLAHE preprocessing optimized for the estimated distance
-            preprocessed_image = preprocess_for_distance(full_image, distance_m, quality_score)
+            # CRITICAL FIX: Apply CLAHE preprocessing to face_image, not full_image
+            preprocessed_face = preprocess_for_distance(face_image, distance_m, quality_score)
             logger.info(f"Applied distance-adaptive CLAHE for {distance_category} ({distance_m:.1f}m)")
 
-            # Step 4: InsightFace predictions on preprocessed image
-            insightface_results = self.get_insightface_predictions(preprocessed_image)
+            # Step 4: Use existing SCRFD analysis if available, otherwise analyze preprocessed face
+            logger.info(f"🔍 Checking for cached face data: face_data={face_data}")
+            
+            if face_data:
+                logger.info(f"   - age: {face_data.get('age')} (type: {type(face_data.get('age'))})")
+                logger.info(f"   - gender: {face_data.get('gender')} (type: {type(face_data.get('gender'))})")
+                logger.info(f"   - det_score: {face_data.get('det_score')}")
+            
+            if face_data and face_data.get('age') is not None and face_data.get('gender') is not None:
+                # Use existing SCRFD analysis - no double analysis needed!
+                insightface_results = {
+                    'age': int(face_data['age']),
+                    'gender': float(face_data['gender']),
+                    'confidence': float(face_data.get('det_score', 0.9))
+                }
+                logger.info(f"✅ Using CACHED SCRFD analysis: Age={insightface_results['age']}, Gender={insightface_results['gender']:.6f}")
+                logger.info(f"   👉 This is the FIRST (correct) analysis from full image")
+            else:
+                # Fallback: run InsightFace analysis on preprocessed face
+                logger.warning(f"⚠️  NO CACHED DATA - Running SECOND analysis on cropped face")
+                logger.warning(f"   This may give WRONG results due to lack of context!")
+                insightface_results = self.get_insightface_predictions(preprocessed_face)
+                logger.info(f"   Fallback analysis: Age={insightface_results['age']}, Gender={insightface_results['gender']:.6f}")
 
             # Step 5: Apply distance-adaptive adjustments
             predictions = {}
@@ -370,4 +426,7 @@ class InsightFaceFaceRecognitionSystem:
         }
 
 # Create global system instance
-insightface_recognition_system = InsightFaceFaceRecognitionSystem()
+# Set USE_ADVANCED_GENDER=true environment variable to enable ensemble
+import os
+use_advanced = os.getenv('USE_ADVANCED_GENDER', 'false').lower() == 'true'
+insightface_recognition_system = InsightFaceFaceRecognitionSystem(use_advanced_gender=use_advanced)

@@ -50,18 +50,18 @@ class FaceDetector:
         self.confidence_threshold = 0.5  # Confidence threshold for detections
         self.min_face_size = 40  # Minimum face size in pixels
 
-    def detect_faces_scrfd(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        """SCRFD-based face detection (35% better accuracy at distance than DNN)"""
+    def detect_faces_scrfd(self, image: np.ndarray):
+        """SCRFD-based face detection with full analysis data (35% better accuracy at distance than DNN)"""
         # Convert BGR to RGB for InsightFace
         if len(image.shape) == 3 and image.shape[2] == 3:
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         else:
             rgb_image = image
 
-        # Get face detections from SCRFD
+        # Get face detections from SCRFD - KEEP ALL DATA
         faces = self.app.get(rgb_image)
 
-        face_boxes = []
+        face_data = []
         for face in faces:
             # Extract bounding box from detection
             bbox = face.bbox.astype(int)
@@ -73,10 +73,20 @@ class FaceDetector:
 
             # Filter by minimum size and confidence
             if w >= self.min_face_size and h >= self.min_face_size:
-                # SCRFD provides high-quality detections with implicit confidence filtering
-                face_boxes.append((x, y, w, h))
+                # CRITICAL FIX: Return full analysis data instead of just bbox
+                face_info = {
+                    'bbox': (x, y, w, h),
+                    'age': getattr(face, 'age', None),
+                    'gender': getattr(face, 'gender', None),
+                    'embedding': getattr(face, 'embedding', None),
+                    'det_score': getattr(face, 'det_score', None)
+                }
 
-        return face_boxes
+                # DEBUG: Log the raw SCRFD results for troubleshooting
+                logger.info(f"🔍 SCRFD RAW ANALYSIS: bbox=({x},{y},{w},{h}), age={face_info['age']}, gender={face_info['gender']}, det_score={face_info['det_score']}")
+                face_data.append(face_info)
+
+        return face_data
 
     def detect_faces_dnn(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
         """DNN-based face detection (40-60% better accuracy than Haar)"""
@@ -145,8 +155,8 @@ class FaceDetector:
 
         return faces.tolist() if len(faces) > 0 else []
 
-    def detect_faces(self, image: np.ndarray) -> List[Tuple[int, int, int, int]]:
-        """Detect faces using DNN (preferred) or Haar cascade (fallback)"""
+    def detect_faces(self, image: np.ndarray):
+        """Detect faces using SCRFD (preferred), DNN, or Haar cascade (fallback)"""
         if image is None or image.size == 0:
             logger.warning("Empty or invalid image received")
             return []
@@ -155,21 +165,26 @@ class FaceDetector:
 
         # Use SCRFD, DNN, or Haar cascade based on availability
         if self.detector_type == "SCRFD":
-            faces = self.detect_faces_scrfd(image)
-            logger.info(f"SCRFD detected {len(faces)} faces")
+            faces_data = self.detect_faces_scrfd(image)
+            logger.info(f"SCRFD detected {len(faces_data)} faces")
+            # Extract just bboxes for backward compatibility in enhancement step
+            faces = [face_data['bbox'] for face_data in faces_data]
         elif self.detector_type == "DNN":
             faces = self.detect_faces_dnn(image)
+            faces_data = [{'bbox': bbox} for bbox in faces]  # Create compatible format
             logger.info(f"DNN detected {len(faces)} faces")
         else:
             faces = self.detect_faces_haar(image)
+            faces_data = [{'bbox': bbox} for bbox in faces]  # Create compatible format
             logger.info(f"Haar detected {len(faces)} faces")
 
         # DEX-inspired face preprocessing: extend face region by 40%
         if len(faces) > 0:
             enhanced_faces = []
+            enhanced_faces_data = []
             h_img, w_img = image.shape[:2]
 
-            for face in faces:
+            for i, face in enumerate(faces):
                 # Convert numpy array to tuple if needed
                 if hasattr(face, 'tolist'):
                     x, y, w, h = face.tolist()
@@ -190,16 +205,28 @@ class FaceDetector:
                 h_new = min(h_img - y_new, h + 2 * margin_h)
 
                 enhanced_faces.append((x_new, y_new, w_new, h_new))
+
+                # Update face data with enhanced bbox
+                if i < len(faces_data):
+                    enhanced_face_data = faces_data[i].copy()
+                    enhanced_face_data['bbox'] = (x_new, y_new, w_new, h_new)
+                    enhanced_faces_data.append(enhanced_face_data)
+
                 logger.info(f"Enhanced face: original=({x},{y},{w},{h}) -> enhanced=({x_new},{y_new},{w_new},{h_new})")
 
             faces = enhanced_faces
+            faces_data = enhanced_faces_data
 
         logger.info(f"Final: Detected {len(faces)} faces using {self.detector_type} with DEX preprocessing")
         if len(faces) > 0:
             for i, (x, y, w, h) in enumerate(faces):
                 logger.info(f"Face {i}: x={x}, y={y}, w={w}, h={h}")
 
-        return faces
+        # Return both bbox list (backward compatibility) and full data
+        if self.detector_type == "SCRFD":
+            return faces, faces_data  # Return enhanced data for SCRFD
+        else:
+            return faces  # Backward compatibility for DNN/Haar
 
 # Create global detector instance
 detector = FaceDetector()

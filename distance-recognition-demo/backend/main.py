@@ -63,14 +63,51 @@ async def analyze_frame(file: UploadFile = File(...)):
     try:
         logger.info(f"Processing frame analysis for file: {file.filename}")
 
-        # Read and convert image
+        # SECURITY FIX: Input validation
+        if not file:
+            raise HTTPException(status_code=400, detail="No file provided")
+
+        # Check file size (limit to 10MB)
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
-        image_np = np.array(image.convert('RGB'))
-        image_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        if len(contents) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+
+        if len(contents) == 0:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        # Check file type
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+        file_ext = None
+        if file.filename:
+            file_ext = '.' + file.filename.lower().split('.')[-1] if '.' in file.filename else None
+
+        if file_ext not in valid_extensions:
+            raise HTTPException(status_code=400, detail=f"Invalid file type. Supported: {valid_extensions}")
+
+        # Read and convert image with error handling
+        try:
+            image = Image.open(io.BytesIO(contents))
+            image_np = np.array(image.convert('RGB'))
+            image_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        except Exception as img_error:
+            raise HTTPException(status_code=400, detail=f"Invalid image file: {str(img_error)}")
+
+        # Check image dimensions
+        height, width = image_cv.shape[:2]
+        if width < 50 or height < 50:
+            raise HTTPException(status_code=400, detail="Image too small (minimum 50x50 pixels)")
+        if width > 4096 or height > 4096:
+            raise HTTPException(status_code=400, detail="Image too large (maximum 4096x4096 pixels)")
 
         # Detect faces using existing face detection
-        faces = detector.detect_faces(image_cv)
+        detection_result = detector.detect_faces(image_cv)
+
+        # Handle both new SCRFD format and legacy format
+        if detector.detector_type == "SCRFD" and isinstance(detection_result, tuple):
+            faces, faces_data = detection_result
+        else:
+            faces = detection_result
+            faces_data = None
 
         if not faces:
             processing_time = (time.time() - start_time) * 1000
@@ -90,7 +127,16 @@ async def analyze_frame(file: UploadFile = File(...)):
         largest_face = max(faces, key=lambda f: f[2] * f[3])
         x, y, w, h = largest_face
 
-        # Extract face region for DeepFace analysis
+        # Get corresponding face data if available
+        largest_face_data = None
+        if faces_data:
+            # Find matching face_data for the largest face
+            for face_data in faces_data:
+                if face_data['bbox'] == largest_face:
+                    largest_face_data = face_data
+                    break
+
+        # Extract face region for analysis
         face_region = image_cv[y:y+h, x:x+w]
 
         # Validate face region
@@ -104,12 +150,13 @@ async def analyze_frame(file: UploadFile = File(...)):
                 "minimum_required": "60x60"
             }
 
-        # Process with hybrid DeepFace + distance research system
+        # Process with recognition system (InsightFace + distance research)
         result = recognition_system.process_frame_analysis(
             face_bbox=largest_face,
             face_image=face_region,
             full_image=image_cv,
-            image_shape=image_cv.shape[:2]
+            image_shape=image_cv.shape[:2],
+            face_data=largest_face_data  # Pass SCRFD analysis data
         )
 
         logger.info(f"Analysis completed in {result.get('processing_time_ms', 0)}ms")

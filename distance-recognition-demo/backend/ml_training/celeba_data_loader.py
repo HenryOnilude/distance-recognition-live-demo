@@ -25,8 +25,27 @@ class CelebALoader:
 
     def __init__(self, data_dir: str = "celeba_data"):
         self.data_dir = data_dir
-        self.images_dir = os.path.join(data_dir, "img_align_celeba")
-        self.attr_file = os.path.join(data_dir, "list_attr_celeba.txt")
+        
+        # Handle both standard and nested (Kaggle) directory structures
+        nested_dir = os.path.join(data_dir, "img_align_celeba", "img_align_celeba")
+        standard_dir = os.path.join(data_dir, "img_align_celeba")
+        
+        if os.path.exists(nested_dir) and os.path.isdir(nested_dir):
+            self.images_dir = nested_dir  # Kaggle format
+        else:
+            self.images_dir = standard_dir  # Standard format
+        
+        # Handle both .txt and .csv for attributes file
+        # Prefer CSV format over TXT (more reliable parsing)
+        csv_file = os.path.join(data_dir, "list_attr_celeba.csv")
+        txt_file = os.path.join(data_dir, "list_attr_celeba.txt")
+        
+        if os.path.exists(csv_file):
+            self.attr_file = csv_file
+        elif os.path.exists(txt_file):
+            self.attr_file = txt_file
+        else:
+            self.attr_file = csv_file  # Default to CSV
 
         # Create directories
         os.makedirs(data_dir, exist_ok=True)
@@ -84,14 +103,23 @@ class CelebALoader:
 
         # Load and check attributes
         try:
-            df = pd.read_csv(self.attr_file, sep='\\s+', skiprows=1)
+            # Detect file format and load accordingly
+            if self.attr_file.endswith('.csv'):
+                # Kaggle CSV format (force comma delimiter)
+                df = pd.read_csv(self.attr_file, sep=',', header=0, encoding='utf-8')
+            else:
+                # Original TXT format (whitespace separated)
+                df = pd.read_csv(self.attr_file, sep='\s+', skiprows=1)
+            
             logger.info(f"Loaded attributes for {len(df):,} images")
+            logger.info(f"Available attributes: {list(df.columns)[:10]}...")  # Show first 10
 
-            # Check required attributes
+            # Check required attributes (case-insensitive)
             required_attrs = ['Young', 'Male']
             for attr in required_attrs:
                 if attr not in df.columns:
                     logger.error(f"Required attribute '{attr}' not found in dataset")
+                    logger.error(f"Available columns: {list(df.columns)}")
                     return False
 
         except Exception as e:
@@ -135,12 +163,25 @@ class CelebALoader:
         Returns:
             DataFrame with binary attributes (converted from -1/1 to 0/1)
         """
-        df = pd.read_csv(self.attr_file, sep='\\s+', skiprows=1)
+        # Detect file format and load accordingly
+        if self.attr_file.endswith('.csv'):
+            # Kaggle CSV format (force comma delimiter)
+            df = pd.read_csv(self.attr_file, sep=',', header=0, encoding='utf-8')
+            # First column is image filename, set it as index
+            if 'image_id' in df.columns:
+                df.set_index('image_id', inplace=True)
+            else:
+                # If first column isn't named 'image_id', it's still the image filename
+                df.set_index(df.columns[0], inplace=True)
+        else:
+            # Original TXT format (whitespace separated)
+            df = pd.read_csv(self.attr_file, sep='\s+', skiprows=1)
 
-        # Convert attributes from -1/1 to 0/1
+        # Convert attributes from -1/1 to 0/1 (skip image_id column)
         for col in df.columns:
-            if col != 'image_id':  # Skip the index column
-                df[col] = (df[col] == 1).astype(int)
+            if col not in ['image_id', df.columns[0]]:  # Skip identifier columns
+                if df[col].dtype in ['int64', 'int32']:
+                    df[col] = (df[col] == 1).astype(int)
 
         logger.info(f"Loaded attributes for {len(df):,} images with {len(df.columns)} attributes")
         return df

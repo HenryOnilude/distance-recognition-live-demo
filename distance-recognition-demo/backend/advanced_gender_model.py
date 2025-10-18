@@ -325,31 +325,37 @@ class AdvancedGenderModel:
         inputs = keras.Input(shape=input_shape)
         
         # Multi-scale branches
-        # Scale 1: Full resolution
-        branch1 = keras.applications.MobileNetV2(
+        # Scale 1: Full resolution (224x224)
+        mobilenet_scale1 = keras.applications.MobileNetV2(
             weights='imagenet',
             include_top=False,
             input_shape=input_shape
-        )(inputs)
-        branch1 = layers.GlobalAveragePooling2D()(branch1)
+        )
+        mobilenet_scale1._name = 'mobilenet_scale1'  # Set name after creation
+        branch1 = mobilenet_scale1(inputs)
+        branch1 = layers.GlobalAveragePooling2D(name='gap_scale1')(branch1)
         
-        # Scale 2: Downsampled
-        downsampled = layers.AveragePooling2D(pool_size=2)(inputs)
-        branch2 = keras.applications.MobileNetV2(
+        # Scale 2: Downsampled (112x112)
+        downsampled = layers.AveragePooling2D(pool_size=2, name='downsample1')(inputs)
+        mobilenet_scale2 = keras.applications.MobileNetV2(
             weights='imagenet',
             include_top=False,
             input_shape=(112, 112, 3)
-        )(downsampled)
-        branch2 = layers.GlobalAveragePooling2D()(branch2)
+        )
+        mobilenet_scale2._name = 'mobilenet_scale2'  # Set name after creation
+        branch2 = mobilenet_scale2(downsampled)
+        branch2 = layers.GlobalAveragePooling2D(name='gap_scale2')(branch2)
         
-        # Scale 3: Further downsampled
-        downsampled2 = layers.AveragePooling2D(pool_size=2)(downsampled)
-        branch3 = keras.applications.MobileNetV2(
+        # Scale 3: Further downsampled (56x56)
+        downsampled2 = layers.AveragePooling2D(pool_size=2, name='downsample2')(downsampled)
+        mobilenet_scale3 = keras.applications.MobileNetV2(
             weights='imagenet',
             include_top=False,
             input_shape=(56, 56, 3)
-        )(downsampled2)
-        branch3 = layers.GlobalAveragePooling2D()(branch3)
+        )
+        mobilenet_scale3._name = 'mobilenet_scale3'  # Set name after creation
+        branch3 = mobilenet_scale3(downsampled2)
+        branch3 = layers.GlobalAveragePooling2D(name='gap_scale3')(branch3)
         
         # Concatenate multi-scale features
         x = layers.concatenate([branch1, branch2, branch3])
@@ -451,10 +457,8 @@ class AdvancedGenderModel:
     def compile_models(self):
         """Compile all models with appropriate losses and optimizers"""
         
-        # Use focal loss for better handling of misclassifications
-        loss = FocalLoss(alpha=0.25, gamma=2.0)
-        
-        optimizer = keras.optimizers.Adam(learning_rate=1e-4)
+        # Use binary crossentropy for simpler, more stable training
+        loss = 'binary_crossentropy'
         
         metrics = [
             'accuracy',
@@ -464,12 +468,15 @@ class AdvancedGenderModel:
         ]
         
         for model_name, model in self.models.items():
+            # Create a NEW optimizer for each model (important!)
+            optimizer = keras.optimizers.Adam(learning_rate=1e-4)
+            
             model.compile(
                 optimizer=optimizer,
                 loss=loss,
                 metrics=metrics
             )
-            logger.info(f"Compiled {model_name} with Focal Loss")
+            logger.info(f"Compiled {model_name} with binary crossentropy")
     
     def predict_ensemble(self, face_image: np.ndarray, distance_m: float = 5.0, 
                         quality_score: float = 0.8) -> Dict:

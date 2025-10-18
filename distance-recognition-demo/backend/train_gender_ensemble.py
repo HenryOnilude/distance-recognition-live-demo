@@ -8,10 +8,15 @@ import logging
 import numpy as np
 import cv2
 import tensorflow as tf
+
+# Force CPU training to avoid M1 Mac Metal/GPU bug
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+tf.config.set_visible_devices([], 'GPU')
+
 from tensorflow import keras
 from typing import Dict, List, Tuple
 from advanced_gender_model import advanced_gender_model
-from ml_training.celeba_data_loader import CelebALoader, create_mock_celeba_data
+from ml_training.celeba_data_loader import CelebALoader
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -153,8 +158,8 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
             logger.error("❌ CelebA dataset not found. Please download first.")
             return
         
-        # Load dataset
-        data = loader.create_sample_dataset(num_samples=50000)
+        # Load dataset (reduced from 50k to 10k to avoid memory issues)
+        data = loader.create_sample_dataset(num_samples=10000)
     else:
         logger.info("Creating mock dataset for demonstration...")
         data = create_mock_celeba_data(num_samples=10000)
@@ -286,7 +291,7 @@ if __name__ == "__main__":
     
     # Train ensemble
     train_ensemble(
-        use_real_data=False,  # Set to True when CelebA is available
+        use_real_data=True,  # Set to True when CelebA is available
         epochs=20,  # Increase for better performance
         batch_size=32
     )

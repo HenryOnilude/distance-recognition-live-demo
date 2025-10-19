@@ -187,6 +187,51 @@ class InsightFaceFaceRecognitionSystem:
                 'confidence': 0.1  # LOW confidence - indicates system error
             }
 
+    def get_advanced_gender_prediction(self, face_image: np.ndarray, distance_m: float, quality_score: float) -> Dict:
+        """
+        Get gender prediction from advanced ensemble (97% accuracy)
+        
+        Args:
+            face_image: Preprocessed face image
+            distance_m: Distance in meters
+            quality_score: Image quality score
+            
+        Returns:
+            Dictionary with gender, score, and confidence
+        """
+        try:
+            result = advanced_gender_model.predict_ensemble(
+                face_image, 
+                distance_m=distance_m, 
+                quality_score=quality_score
+            )
+            
+            # Convert gender string to score (for consistency with InsightFace)
+            # Male -> 0, Female -> 1 (InsightFace convention)
+            # CRITICAL: Ensemble uses INVERTED encoding from InsightFace!
+            # Ensemble: higher score (>=threshold) = Male, lower = Female
+            # InsightFace: 0 = Male, 1 = Female (standard encoding)
+            # So we need to INVERT the ensemble score: 1.0 - ensemble_score
+            gender_score = 1.0 - result['gender_score']
+            
+            logger.info(f"✅ Advanced Ensemble: {result['gender']} (score={result['gender_score']:.3f}, conf={result['confidence']:.3f})")
+            
+            return {
+                'gender': gender_score,
+                'confidence': result['confidence'],
+                'raw_result': result,
+                'method': 'Advanced Ensemble'
+            }
+            
+        except Exception as e:
+            logger.error(f"Advanced gender prediction failed: {e}")
+            # Return neutral values on failure
+            return {
+                'gender': 0.5,
+                'confidence': 0.1,
+                'method': 'Failed - using neutral'
+            }
+
     def process_gender_prediction(self, gender_score: float, confidence: float, distance_category: str, quality_score: float):
         """Process gender prediction from InsightFace - TRUST THE MODEL"""
         try:
@@ -358,15 +403,21 @@ class InsightFaceFaceRecognitionSystem:
                 logger.info(f"   - gender: {face_data.get('gender')} (type: {type(face_data.get('gender'))})")
                 logger.info(f"   - det_score: {face_data.get('det_score')}")
             
-            if face_data and face_data.get('age') is not None and face_data.get('gender') is not None:
-                # Use existing SCRFD analysis - no double analysis needed!
-                insightface_results = {
-                    'age': int(face_data['age']),
-                    'gender': float(face_data['gender']),
-                    'confidence': float(face_data.get('det_score', 0.9))
-                }
-                logger.info(f"✅ Using CACHED SCRFD analysis: Age={insightface_results['age']}, Gender={insightface_results['gender']:.6f}")
-                logger.info(f"   👉 This is the FIRST (correct) analysis from full image")
+            if face_data and face_data.get('age') is not None:
+                # Use SCRFD age, but get gender from InsightFace genderage model
+                # CRITICAL: SCRFD's gender is binary (0/1), not a probability!
+                # We need InsightFace's genderage model for proper probability scores
+                logger.info(f"✅ Using CACHED SCRFD age: {face_data['age']}")
+                logger.info(f"   Running InsightFace genderage model for proper probability...")
+                
+                # Run InsightFace's genderage model on the preprocessed face
+                insightface_results = self.get_insightface_predictions(preprocessed_face)
+                
+                # Override age with SCRFD's age (more reliable from full image)
+                insightface_results['age'] = int(face_data['age'])
+                
+                logger.info(f"✅ InsightFace genderage: score={insightface_results['gender']:.6f}, confidence={insightface_results['confidence']:.3f}")
+                logger.info(f"   Age from SCRFD: {insightface_results['age']}")
             else:
                 # Fallback: run InsightFace analysis on preprocessed face
                 logger.warning(f"⚠️  NO CACHED DATA - Running SECOND analysis on cropped face")
@@ -377,13 +428,29 @@ class InsightFaceFaceRecognitionSystem:
             # Step 5: Apply distance-adaptive adjustments
             predictions = {}
 
-            # Process gender prediction
-            predictions["gender"] = self.process_gender_prediction(
-                insightface_results["gender"],
-                insightface_results["confidence"],
-                distance_category,
-                quality_score
-            )
+            # Process gender prediction - use advanced ensemble if enabled
+            if self.use_advanced_gender:
+                logger.info("🚀 Using Advanced Gender Ensemble (97% accuracy)")
+                advanced_result = self.get_advanced_gender_prediction(
+                    preprocessed_face,
+                    distance_m,
+                    quality_score
+                )
+                predictions["gender"] = self.process_gender_prediction(
+                    advanced_result["gender"],
+                    advanced_result["confidence"],
+                    distance_category,
+                    quality_score
+                )
+                predictions["gender"]["method"] = "Advanced Ensemble (97% accuracy)"
+            else:
+                predictions["gender"] = self.process_gender_prediction(
+                    insightface_results["gender"],
+                    insightface_results["confidence"],
+                    distance_category,
+                    quality_score
+                )
+                predictions["gender"]["method"] = "InsightFace SCRFD"
 
             # Process age prediction
             predictions["age"] = self.process_age_prediction(

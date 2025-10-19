@@ -96,8 +96,15 @@ async def analyze_frame(file: UploadFile = File(...)):
         height, width = image_cv.shape[:2]
         if width < 50 or height < 50:
             raise HTTPException(status_code=400, detail="Image too small (minimum 50x50 pixels)")
+        
+        # Auto-resize large images instead of rejecting them
         if width > 4096 or height > 4096:
-            raise HTTPException(status_code=400, detail="Image too large (maximum 4096x4096 pixels)")
+            logger.info(f"Resizing large image from {width}x{height}")
+            scale = min(4096 / width, 4096 / height)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            image_cv = cv2.resize(image_cv, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            logger.info(f"Resized to {new_width}x{new_height}")
 
         # Detect faces using existing face detection
         detection_result = detector.detect_faces(image_cv)

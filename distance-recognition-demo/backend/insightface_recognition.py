@@ -154,8 +154,10 @@ class InsightFaceFaceRecognitionSystem:
             if hasattr(face, 'gender'):
                 gender_score = face.gender
             elif hasattr(face, 'sex'):
+                logger.warning("⚠️ 'gender' attribute not found, using 'sex' attribute as fallback")
                 gender_score = face.sex
             else:
+                logger.warning("⚠️ Neither 'gender' nor 'sex' attribute found, using neutral value 0.5")
                 gender_score = 0.5  # ACTUAL: 0=male, 1=female
 
             # Calculate confidence based on face quality and detection score
@@ -264,7 +266,8 @@ class InsightFaceFaceRecognitionSystem:
             raw_confidence = abs(gender_score - 0.5) * 2 * confidence  # Scale to 0-1
 
             # Ensure reasonable confidence bounds
-            raw_confidence = max(0.3, min(0.95, raw_confidence))
+            # Floor at 0.1 to allow reporting genuine uncertainty
+            raw_confidence = max(0.1, min(0.95, raw_confidence))
 
             logger.info(f"InsightFace prediction: {predicted_gender} (score={gender_score:.3f}) with confidence {raw_confidence:.3f}")
 

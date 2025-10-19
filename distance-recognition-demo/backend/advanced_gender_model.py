@@ -529,7 +529,7 @@ class AdvancedGenderModel:
         threshold_adjusted = threshold + (1.0 - quality_score) * 0.05
         
         # Final prediction
-        predicted_gender = "Female" if ensemble_score >= threshold_adjusted else "Male"
+        predicted_gender = "Male" if ensemble_score >= threshold_adjusted else "Female"
         
         # Calculate confidence
         # Distance from threshold indicates confidence

@@ -248,11 +248,12 @@ class InsightFaceFaceRecognitionSystem:
             # DEBUG: Log raw gender score
             logger.info(f"RAW GENDER SCORE: {gender_score:.6f}")
             
-            # CORRECT ENCODING: InsightFace 0=Male, 1=Female (standard encoding)
-            raw_predicted_gender = "Male" if gender_score < 0.5 else "Female"
-            logger.info(f"Using CORRECT encoding (0=Male, 1=Female): score={gender_score:.3f} -> {raw_predicted_gender}")
+            # CORRECT ENCODING: InsightFace uses 1=Male, 0=Female (INVERTED from standard!)
+            # Source: insightface/app/common.py: return 'M' if self.gender==1 else 'F'
+            raw_predicted_gender = "Male" if gender_score >= 0.5 else "Female"
+            logger.info(f"Using InsightFace encoding (1=Male, 0=Female): score={gender_score:.3f} -> {raw_predicted_gender}")
 
-            # Trust the SCRFD model predictions - use standard encoding (0=Male, 1=Female)
+            # Apply InsightFace's inverted encoding
             predicted_gender = raw_predicted_gender
 
             # BIAS DETECTION: Log cases where the model may be exhibiting bias
@@ -411,10 +412,11 @@ class InsightFaceFaceRecognitionSystem:
                 # CRITICAL: SCRFD's gender is binary (0/1), not a probability!
                 # We need InsightFace's genderage model for proper probability scores
                 logger.info(f"✅ Using CACHED SCRFD age: {face_data['age']}")
-                logger.info(f"   Running InsightFace genderage model for proper probability...")
+                logger.info(f"   Running InsightFace genderage model on FULL IMAGE (needs context)...")
                 
-                # Run InsightFace's genderage model on the preprocessed face
-                insightface_results = self.get_insightface_predictions(preprocessed_face)
+                # CRITICAL: Use full_image, not preprocessed_face!
+                # Genderage model needs hair/clothing/shoulders context for accuracy
+                insightface_results = self.get_insightface_predictions(full_image)
                 
                 # Override age with SCRFD's age (more reliable from full image)
                 insightface_results['age'] = int(face_data['age'])
@@ -422,10 +424,9 @@ class InsightFaceFaceRecognitionSystem:
                 logger.info(f"✅ InsightFace genderage: score={insightface_results['gender']:.6f}, confidence={insightface_results['confidence']:.3f}")
                 logger.info(f"   Age from SCRFD: {insightface_results['age']}")
             else:
-                # Fallback: run InsightFace analysis on preprocessed face
-                logger.warning(f"⚠️  NO CACHED DATA - Running SECOND analysis on cropped face")
-                logger.warning(f"   This may give WRONG results due to lack of context!")
-                insightface_results = self.get_insightface_predictions(preprocessed_face)
+                # Fallback: run InsightFace analysis on full image
+                logger.warning(f"⚠️  NO CACHED DATA - Running analysis on FULL IMAGE")
+                insightface_results = self.get_insightface_predictions(full_image)
                 logger.info(f"   Fallback analysis: Age={insightface_results['age']}, Gender={insightface_results['gender']:.6f}")
 
             # Step 5: Apply distance-adaptive adjustments

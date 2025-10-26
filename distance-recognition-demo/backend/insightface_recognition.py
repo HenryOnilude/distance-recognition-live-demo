@@ -252,6 +252,10 @@ class InsightFaceFaceRecognitionSystem:
     def process_gender_prediction(self, gender_score: float, confidence: float, distance_category: str, quality_score: float):
         """Process gender prediction from InsightFace - TRUST THE MODEL"""
         try:
+            # Convert numpy types to Python float (DeepFace returns numpy.float32)
+            gender_score = float(gender_score)
+            confidence = float(confidence)
+            
             # ERROR BOUNDARY: Validate inputs
             if not isinstance(gender_score, (int, float)) or not isinstance(confidence, (int, float)):
                 raise ValueError(f"Invalid input types: gender_score={type(gender_score)}, confidence={type(confidence)}")
@@ -466,10 +470,15 @@ class InsightFaceFaceRecognitionSystem:
                 # Use DeepFace for better accuracy on diverse faces
                 logger.info("🌟 Using DeepFace (90%+ accuracy on diverse faces)")
                 try:
+                    # CRITICAL FIX: Convert BGR to RGB for DeepFace
+                    # DeepFace expects RGB but we're passing OpenCV's BGR format
+                    full_image_rgb = cv2.cvtColor(full_image, cv2.COLOR_BGR2RGB)
+                    logger.info("   Converted BGR → RGB for DeepFace")
+                    
                     # Analyze with DeepFace (uses VGG-Face backend by default)
                     # Pass full_image for better context
                     result = DeepFace.analyze(
-                        full_image, 
+                        full_image_rgb,  # Use RGB version!
                         actions=['gender'],
                         enforce_detection=False,
                         detector_backend='skip'  # We already detected face

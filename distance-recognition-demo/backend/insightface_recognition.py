@@ -454,8 +454,12 @@ class InsightFaceFaceRecognitionSystem:
             # Process gender prediction - use advanced ensemble if enabled
             if self.use_advanced_gender:
                 logger.info("🚀 Using Advanced Gender Ensemble (97% accuracy)")
+                # CRITICAL FIX: Convert BGR to RGB for TensorFlow models
+                preprocessed_face_rgb = cv2.cvtColor(preprocessed_face, cv2.COLOR_BGR2RGB)
+                logger.info("   Converted BGR → RGB for ensemble")
+                
                 advanced_result = self.get_advanced_gender_prediction(
-                    preprocessed_face,
+                    preprocessed_face_rgb,  # Use RGB version!
                     distance_m,
                     quality_score
                 )

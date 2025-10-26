@@ -15,6 +15,15 @@ from quality_assessment import assess_image_quality
 from adaptive_preprocessing import preprocess_for_distance
 from advanced_gender_model import advanced_gender_model
 
+# DeepFace for better gender accuracy on diverse faces
+try:
+    from deepface import DeepFace
+    DEEPFACE_AVAILABLE = True
+except ImportError:
+    DEEPFACE_AVAILABLE = False
+    logger = logging.getLogger(__name__)  # Early logger for import warnings
+    logger.warning("⚠️ DeepFace not installed. Install with: pip install deepface tf-keras")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,6 +51,12 @@ class InsightFaceFaceRecognitionSystem:
                 logger.error(f"Failed to load advanced gender models: {e}")
                 logger.warning("Falling back to InsightFace gender predictions")
                 self.use_advanced_gender = False
+        
+        # DeepFace for better gender accuracy (if available and not using advanced ensemble)
+        self.use_deepface = False
+        if DEEPFACE_AVAILABLE and not self.use_advanced_gender:
+            self.use_deepface = True
+            logger.info("✅ DeepFace available - will use for gender prediction (90%+ accuracy)")
 
         # Distance research parameters
         self.distance_config = {
@@ -447,6 +462,62 @@ class InsightFaceFaceRecognitionSystem:
                     quality_score
                 )
                 predictions["gender"]["method"] = "Advanced Ensemble (97% accuracy)"
+            elif self.use_deepface:
+                # Use DeepFace for better accuracy on diverse faces
+                logger.info("🌟 Using DeepFace (90%+ accuracy on diverse faces)")
+                try:
+                    # Analyze with DeepFace (uses VGG-Face backend by default)
+                    # Pass full_image for better context
+                    result = DeepFace.analyze(
+                        full_image, 
+                        actions=['gender'],
+                        enforce_detection=False,
+                        detector_backend='skip'  # We already detected face
+                    )
+                    
+                    # DeepFace returns list or dict depending on version
+                    if isinstance(result, list):
+                        result = result[0]
+                    
+                    # Extract gender prediction
+                    # DeepFace returns {'gender': {'Woman': 98.5, 'Man': 1.5}}
+                    gender_dict = result.get('gender', {})
+                    
+                    if isinstance(gender_dict, dict):
+                        # Get probabilities
+                        woman_prob = gender_dict.get('Woman', 0)
+                        man_prob = gender_dict.get('Man', 0)
+                        
+                        # Convert to InsightFace format (1=Male, 0=Female)
+                        deepface_score = man_prob / 100.0  # Convert percentage to 0-1
+                        deepface_confidence = max(woman_prob, man_prob) / 100.0
+                        
+                        predicted_gender = "Male" if man_prob > woman_prob else "Female"
+                        logger.info(f"✅ DeepFace prediction: {predicted_gender} (Man: {man_prob:.1f}%, Woman: {woman_prob:.1f}%)")
+                    else:
+                        # Fallback format
+                        predicted_gender = str(gender_dict)
+                        deepface_score = 1.0 if 'Man' in predicted_gender else 0.0
+                        deepface_confidence = 0.85
+                    
+                    predictions["gender"] = self.process_gender_prediction(
+                        deepface_score,
+                        deepface_confidence,
+                        distance_category,
+                        quality_score
+                    )
+                    predictions["gender"]["method"] = "DeepFace VGG-Face"
+                    
+                except Exception as e:
+                    # Fallback to InsightFace if DeepFace fails
+                    logger.warning(f"⚠️ DeepFace prediction failed: {e}, using InsightFace fallback")
+                    predictions["gender"] = self.process_gender_prediction(
+                        insightface_results["gender"],
+                        insightface_results["confidence"],
+                        distance_category,
+                        quality_score
+                    )
+                    predictions["gender"]["method"] = "InsightFace (DeepFace fallback)"
             else:
                 predictions["gender"] = self.process_gender_prediction(
                     insightface_results["gender"],

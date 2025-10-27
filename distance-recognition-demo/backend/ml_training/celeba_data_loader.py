@@ -186,12 +186,14 @@ class CelebALoader:
         logger.info(f"Loaded attributes for {len(df):,} images with {len(df.columns)} attributes")
         return df
 
-    def create_sample_dataset(self, num_samples: int = 1000) -> Dict:
+    def create_sample_dataset(self, num_samples: int = 1000, exclude_used: bool = False, used_images_file: str = "used_images.txt") -> Dict:
         """
         Create a small sample dataset for testing/development
 
         Args:
             num_samples: Number of samples to create
+            exclude_used: If True, exclude images that have been used before
+            used_images_file: Path to file tracking used images
 
         Returns:
             Dictionary with sample data
@@ -204,10 +206,23 @@ class CelebALoader:
 
         # Load attributes
         df = self.load_attributes()
+        
+        # Load previously used images if excluding them
+        used_images = set()
+        if exclude_used and os.path.exists(used_images_file):
+            with open(used_images_file, 'r') as f:
+                used_images = set(line.strip() for line in f)
+            logger.info(f"Excluding {len(used_images):,} previously used images")
+            
+            # Filter out used images
+            available_df = df[~df.index.isin(used_images)]
+            logger.info(f"Available unused images: {len(available_df):,} / {len(df):,}")
+        else:
+            available_df = df
 
-        # Sample random images
-        sample_indices = np.random.choice(len(df), size=min(num_samples, len(df)), replace=False)
-        sample_df = df.iloc[sample_indices].copy()
+        # Sample random images from available pool
+        sample_indices = np.random.choice(len(available_df), size=min(num_samples, len(available_df)), replace=False)
+        sample_df = available_df.iloc[sample_indices].copy()
 
         images = []
         ages = []
@@ -229,12 +244,20 @@ class CelebALoader:
         dataset = {
             'images': np.array(images),
             'ages': np.array(ages),
-            'genders': np.array(genders)
+            'genders': np.array(genders),
+            'image_ids': list(sample_df.index)  # Track which images were used
         }
 
         logger.info(f"Sample dataset created: {len(images):,} images")
         logger.info(f"Age distribution - Young: {np.sum(ages):,}, Old: {len(ages) - np.sum(ages):,}")
         logger.info(f"Gender distribution - Male: {np.sum(genders):,}, Female: {len(genders) - np.sum(genders):,}")
+        
+        # Save used image IDs if requested
+        if exclude_used:
+            with open(used_images_file, 'a') as f:
+                for img_id in sample_df.index:
+                    f.write(f"{img_id}\n")
+            logger.info(f"Saved {len(sample_df):,} image IDs to {used_images_file}")
 
         return dataset
 

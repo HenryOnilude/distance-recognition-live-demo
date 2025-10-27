@@ -325,36 +325,33 @@ class AdvancedGenderModel:
         inputs = keras.Input(shape=input_shape)
         
         # Multi-scale branches
-        # Scale 1: Full resolution (224x224)
-        mobilenet_scale1 = keras.applications.MobileNetV2(
+        # Scale 1: Full resolution (224x224) - Use ResNet50 instead
+        resnet_scale1 = keras.applications.ResNet50(
             weights='imagenet',
             include_top=False,
             input_shape=input_shape
         )
-        mobilenet_scale1._name = 'mobilenet_scale1'  # Set name after creation
-        branch1 = mobilenet_scale1(inputs)
+        branch1 = resnet_scale1(inputs)
         branch1 = layers.GlobalAveragePooling2D(name='gap_scale1')(branch1)
         
-        # Scale 2: Downsampled (112x112)
+        # Scale 2: Downsampled (112x112) - Use MobileNetV2
         downsampled = layers.AveragePooling2D(pool_size=2, name='downsample1')(inputs)
         mobilenet_scale2 = keras.applications.MobileNetV2(
             weights='imagenet',
             include_top=False,
             input_shape=(112, 112, 3)
         )
-        mobilenet_scale2._name = 'mobilenet_scale2'  # Set name after creation
         branch2 = mobilenet_scale2(downsampled)
         branch2 = layers.GlobalAveragePooling2D(name='gap_scale2')(branch2)
         
-        # Scale 3: Further downsampled (56x56)
+        # Scale 3: Further downsampled (56x56) - Use VGG16
         downsampled2 = layers.AveragePooling2D(pool_size=2, name='downsample2')(downsampled)
-        mobilenet_scale3 = keras.applications.MobileNetV2(
+        vgg_scale3 = keras.applications.VGG16(
             weights='imagenet',
             include_top=False,
             input_shape=(56, 56, 3)
         )
-        mobilenet_scale3._name = 'mobilenet_scale3'  # Set name after creation
-        branch3 = mobilenet_scale3(downsampled2)
+        branch3 = vgg_scale3(downsampled2)
         branch3 = layers.GlobalAveragePooling2D(name='gap_scale3')(branch3)
         
         # Concatenate multi-scale features
@@ -436,23 +433,23 @@ class AdvancedGenderModel:
         Create ensemble of models for robust prediction
         Voting strategy: Weighted average based on model performance
         """
-        logger.info("Building gender ensemble with 5 specialized models...")
+        logger.info("Building gender ensemble with 3 specialized models...")
         
-        # Build all models
+        # Build all models (EfficientNet disabled due to Keras version incompatibility)
         self.models['resnet'] = self.build_resnet_gender_model()
-        self.models['efficientnet'] = self.build_efficientnet_gender_model()
+        # self.models['efficientnet'] = self.build_efficientnet_gender_model()  # Disabled: shape mismatch error
         self.models['mobilenet'] = self.build_mobilenet_gender_model()
         self.models['multiscale'] = self.build_multi_scale_gender_model()
         
         # Ensemble weights (based on expected performance)
         self.ensemble_weights = {
-            'resnet': 0.30,        # Highest accuracy
-            'efficientnet': 0.25,  # Good balance
-            'mobilenet': 0.20,     # Fast, decent accuracy
-            'multiscale': 0.25     # Robust to distance variations
+            'resnet': 0.40,        # Highest accuracy (increased weight)
+            # 'efficientnet': 0.25,  # Disabled
+            'mobilenet': 0.30,     # Fast, decent accuracy (increased weight)
+            'multiscale': 0.30     # Robust to distance variations (increased weight)
         }
         
-        logger.info("Ensemble created with 4 models")
+        logger.info("Ensemble created with 3 models (ResNet, MobileNet, MultiScale)")
         
     def compile_models(self):
         """Compile all models with appropriate losses and optimizers"""

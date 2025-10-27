@@ -136,7 +136,7 @@ class DistanceAwareDataGenerator(keras.utils.Sequence):
         return image
 
 
-def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: int = 32):
+def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: int = 32, exclude_used: bool = False, num_samples: int = 10000):
     """
     Train the advanced gender ensemble
     
@@ -144,6 +144,8 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
         use_real_data: Use real CelebA dataset (requires download)
         epochs: Number of training epochs per model
         batch_size: Batch size for training
+        exclude_used: If True, only use images not previously used
+        num_samples: Number of samples to load
     """
     logger.info("=" * 60)
     logger.info("🚀 TRAINING ADVANCED GENDER ENSEMBLE")
@@ -158,8 +160,12 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
             logger.error("❌ CelebA dataset not found. Please download first.")
             return
         
-        # Load dataset (reduced from 50k to 10k to avoid memory issues)
-        data = loader.create_sample_dataset(num_samples=10000)
+        # Load dataset - exclude_used controls whether to use fresh images only
+        data = loader.create_sample_dataset(
+            num_samples=num_samples,
+            exclude_used=exclude_used,
+            used_images_file="celeba_used_images.txt"
+        )
     else:
         logger.info("Creating mock dataset for demonstration...")
         data = create_mock_celeba_data(num_samples=10000)
@@ -206,7 +212,7 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
         # Callbacks
         callbacks = [
             keras.callbacks.ModelCheckpoint(
-                os.path.join(save_dir, f"{model_name}_gender_weights.h5"),
+                os.path.join(save_dir, f"{model_name}_gender.weights.h5"),  # Keras 3 requires .weights.h5
                 save_best_only=True,
                 save_weights_only=True,
                 monitor='val_accuracy',
@@ -285,13 +291,54 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
 
 
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Train gender ensemble models")
+    parser.add_argument('--use-real-data', action='store_true', default=True,
+                       help='Use real CelebA data (default: True)')
+    parser.add_argument('--epochs', type=int, default=20,
+                       help='Training epochs (default: 20)')
+    parser.add_argument('--batch-size', type=int, default=32,
+                       help='Batch size (default: 32)')
+    parser.add_argument('--continue-training', action='store_true',
+                       help='Continue training on unused images')
+    parser.add_argument('--num-samples', type=int, default=10000,
+                       help='Number of samples per batch (default: 10000)')
+    parser.add_argument('--num-batches', type=int, default=1,
+                       help='Number of training batches for continued training (default: 1)')
+    
+    args = parser.parse_args()
+    
     # Set random seeds
     tf.random.set_seed(42)
     np.random.seed(42)
     
-    # Train ensemble
-    train_ensemble(
-        use_real_data=True,  # Set to True when CelebA is available
-        epochs=20,  # Increase for better performance
-        batch_size=32
-    )
+    if args.continue_training:
+        logger.info("\n" + "="*70)
+        logger.info("CONTINUING TRAINING ON UNUSED CELEBA DATA")
+        logger.info("="*70)
+        logger.info(f"Training {args.num_batches} batch(es) of {args.num_samples:,} images each")
+        logger.info(f"Total new images: ~{args.num_samples * args.num_batches:,}")
+        logger.info("="*70 + "\n")
+        
+        # Train multiple batches
+        for batch_num in range(1, args.num_batches + 1):
+            logger.info(f"\n{'='*70}")
+            logger.info(f"BATCH {batch_num}/{args.num_batches}")
+            logger.info(f"{'='*70}")
+            
+            # Train on unused data only
+            train_ensemble(
+                use_real_data=args.use_real_data,
+                epochs=args.epochs,
+                batch_size=args.batch_size,
+                exclude_used=True,  # Only load unused images
+                num_samples=args.num_samples
+            )
+    else:
+        # Normal training
+        train_ensemble(
+            use_real_data=args.use_real_data,
+            epochs=args.epochs,
+            batch_size=args.batch_size
+        )

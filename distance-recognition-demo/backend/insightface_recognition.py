@@ -256,13 +256,10 @@ class InsightFaceFaceRecognitionSystem:
                 quality_score=quality_score
             )
             
-            # Convert gender string to score (for consistency with InsightFace)
-            # Male -> 0, Female -> 1 (InsightFace convention)
-            # CRITICAL: Ensemble uses INVERTED encoding from InsightFace!
-            # Ensemble: higher score (>=threshold) = Male, lower = Female
-            # InsightFace: 0 = Male, 1 = Female (standard encoding)
-            # So we need to INVERT the ensemble score: 1.0 - ensemble_score
-            gender_score = 1.0 - result['gender_score']
+            # Use ensemble score directly - no inversion needed!
+            # Ensemble encoding: higher score (>=threshold) = Male, lower = Female
+            # Processing encoding: >=0.5 = Male, <0.5 = Female (same as ensemble)
+            gender_score = result['gender_score']
             
             logger.info(f"✅ Advanced Ensemble: {result['gender']} (score={result['gender_score']:.3f}, conf={result['confidence']:.3f})")
             

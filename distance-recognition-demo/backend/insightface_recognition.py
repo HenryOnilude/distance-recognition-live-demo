@@ -101,12 +101,27 @@ class InsightFaceFaceRecognitionSystem:
     def get_insightface_predictions(self, face_image):
         """Get predictions from InsightFace for age, gender with enhanced detection"""
         try:
+            logger.info("   ===== INSIGHTFACE GENDERAGE DEBUG =====")
+            logger.info(f"   📊 Input to InsightFace genderage:")
+            logger.info(f"      - Shape: {face_image.shape}")
+            logger.info(f"      - Dtype: {face_image.dtype}")
+            logger.info(f"      - Mean BGR: B={face_image[:,:,0].mean():.1f}, G={face_image[:,:,1].mean():.1f}, R={face_image[:,:,2].mean():.1f}")
+            
             # Ensure image is in correct format
             if len(face_image.shape) == 3 and face_image.shape[2] == 3:
                 # Convert BGR to RGB for InsightFace
                 face_image_rgb = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
+                logger.info(f"   ✅ Converted BGR→RGB for InsightFace genderage")
+                logger.info(f"      - Mean RGB: R={face_image_rgb[:,:,0].mean():.1f}, G={face_image_rgb[:,:,1].mean():.1f}, B={face_image_rgb[:,:,2].mean():.1f}")
+                
+                # Verify swap
+                if abs(face_image[:,:,0].mean() - face_image_rgb[:,:,2].mean()) < 1.0:
+                    logger.info(f"      - ✅ Channels swapped correctly")
+                else:
+                    logger.error(f"      - ❌ Channel swap FAILED!")
             else:
                 face_image_rgb = face_image
+                logger.warning(f"   ⚠️ Image not 3-channel, using as-is")
 
             # Strategy 1: Try with original image first
             faces = self.app.get(face_image_rgb)
@@ -164,16 +179,34 @@ class InsightFaceFaceRecognitionSystem:
 
             # Extract age and gender with confidence
             age = face.age if hasattr(face, 'age') else 25
+            
+            logger.info(f"   📊 InsightFace face attributes:")
+            logger.info(f"      - Has 'age': {hasattr(face, 'age')}, value: {age}")
+            logger.info(f"      - Has 'gender': {hasattr(face, 'gender')}")
+            logger.info(f"      - Has 'sex': {hasattr(face, 'sex')}")
+            logger.info(f"      - Has 'det_score': {hasattr(face, 'det_score')}")
+            if hasattr(face, 'det_score'):
+                logger.info(f"      - det_score: {face.det_score}")
 
             # CRITICAL FIX: Check for both 'gender' and 'sex' attributes
             if hasattr(face, 'gender'):
                 gender_score = face.gender
+                logger.info(f"      - gender attribute: {gender_score} (type: {type(gender_score)})")
             elif hasattr(face, 'sex'):
                 logger.warning("⚠️ 'gender' attribute not found, using 'sex' attribute as fallback")
                 gender_score = face.sex
+                logger.info(f"      - sex attribute: {gender_score} (type: {type(gender_score)})")
             else:
                 logger.warning("⚠️ Neither 'gender' nor 'sex' attribute found, using neutral value 0.5")
                 gender_score = 0.5  # ACTUAL: 0=male, 1=female
+            
+            # Log interpretation
+            if gender_score >= 0.5:
+                interpretation = "Male"
+            else:
+                interpretation = "Female"
+            logger.info(f"      - RAW gender_score: {gender_score:.6f} → {interpretation}")
+            logger.info(f"      - InsightFace encoding: 1.0=Male, 0.0=Female")
 
             # Calculate confidence based on face quality and detection score
             bbox = face.bbox
@@ -478,6 +511,17 @@ class InsightFaceFaceRecognitionSystem:
                     # DeepFace expects RGB but we're passing OpenCV's BGR format
                     full_image_rgb = cv2.cvtColor(full_image, cv2.COLOR_BGR2RGB)
                     logger.info("   Converted BGR → RGB for DeepFace")
+                    
+                    # DEBUG: Save images to verify color channels
+                    import os
+                    debug_dir = "debug_images"
+                    os.makedirs(debug_dir, exist_ok=True)
+                    
+                    # Save BGR version (what OpenCV has)
+                    cv2.imwrite(f"{debug_dir}/debug_bgr.jpg", full_image)
+                    # Save RGB version (what DeepFace gets) - need to convert back to BGR for cv2.imwrite
+                    cv2.imwrite(f"{debug_dir}/debug_rgb_as_bgr.jpg", cv2.cvtColor(full_image_rgb, cv2.COLOR_RGB2BGR))
+                    logger.info(f"   DEBUG: Saved images to {debug_dir}/ for inspection")
                     
                     # Analyze with DeepFace (uses VGG-Face backend by default)
                     # Pass full_image for better context

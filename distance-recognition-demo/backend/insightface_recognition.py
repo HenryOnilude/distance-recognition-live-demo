@@ -41,7 +41,7 @@ class InsightFaceFaceRecognitionSystem:
             logger.info("Loading Advanced Gender Ensemble (97% accuracy)...")
             try:
                 advanced_gender_model.create_ensemble()
-                advanced_gender_model.load_models('./gender_models')
+                advanced_gender_model.load_models('./weights')
                 if advanced_gender_model.is_trained:
                     logger.info("✅ Advanced Gender Ensemble loaded successfully!")
                 else:
@@ -201,12 +201,13 @@ class InsightFaceFaceRecognitionSystem:
                 gender_score = 0.5  # ACTUAL: 0=male, 1=female
             
             # Log interpretation
+            # CORRECT ENCODING: InsightFace uses 1=Female, 0=Male
             if gender_score >= 0.5:
-                interpretation = "Male"
-            else:
                 interpretation = "Female"
+            else:
+                interpretation = "Male"
             logger.info(f"      - RAW gender_score: {gender_score:.6f} → {interpretation}")
-            logger.info(f"      - InsightFace encoding: 1.0=Male, 0.0=Female")
+            logger.info(f"      - InsightFace encoding: 1.0=Female, 0.0=Male")
 
             # Calculate confidence based on face quality and detection score
             bbox = face.bbox
@@ -297,10 +298,10 @@ class InsightFaceFaceRecognitionSystem:
             # DEBUG: Log raw gender score
             logger.info(f"RAW GENDER SCORE: {gender_score:.6f}")
             
-            # CORRECT ENCODING: InsightFace uses 1=Male, 0=Female (INVERTED from standard!)
-            # Source: insightface/app/common.py: return 'M' if self.gender==1 else 'F'
-            raw_predicted_gender = "Male" if gender_score >= 0.5 else "Female"
-            logger.info(f"Using InsightFace encoding (1=Male, 0=Female): score={gender_score:.3f} -> {raw_predicted_gender}")
+            # CORRECT ENCODING: InsightFace uses 1=Female, 0=Male
+            # Despite what some docs say, empirical testing shows: 1=Female, 0=Male
+            raw_predicted_gender = "Female" if gender_score >= 0.5 else "Male"
+            logger.info(f"Using InsightFace encoding (1=Female, 0=Male): score={gender_score:.3f} -> {raw_predicted_gender}")
 
             # Apply InsightFace's inverted encoding
             predicted_gender = raw_predicted_gender
@@ -542,8 +543,8 @@ class InsightFaceFaceRecognitionSystem:
                         woman_prob = gender_dict.get('Woman', 0)
                         man_prob = gender_dict.get('Man', 0)
                         
-                        # Convert to InsightFace format (1=Male, 0=Female)
-                        deepface_score = man_prob / 100.0  # Convert percentage to 0-1
+                        # Convert to InsightFace format (1=Female, 0=Male)
+                        deepface_score = woman_prob / 100.0  # Convert percentage to 0-1
                         deepface_confidence = max(woman_prob, man_prob) / 100.0
                         
                         predicted_gender = "Male" if man_prob > woman_prob else "Female"
@@ -650,5 +651,5 @@ class InsightFaceFaceRecognitionSystem:
 # Create global system instance
 # Set USE_ADVANCED_GENDER=true environment variable to enable ensemble
 import os
-use_advanced = os.getenv('USE_ADVANCED_GENDER', 'false').lower() == 'true'
+use_advanced = os.getenv('USE_ADVANCED_GENDER', 'true').lower() == 'true'
 insightface_recognition_system = InsightFaceFaceRecognitionSystem(use_advanced_gender=use_advanced)

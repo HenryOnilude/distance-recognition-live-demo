@@ -605,14 +605,21 @@ class AdvancedGenderModel:
             self.create_ensemble()
         
         for model_name, model in self.models.items():
-            weight_path = os.path.join(save_dir, f"{model_name}_gender_weights.h5")
+            # Try new Keras 3 format first (.weights.h5)
+            weight_path_new = os.path.join(save_dir, f"{model_name}_gender.weights.h5")
+            # Fallback to old format
+            weight_path_old = os.path.join(save_dir, f"{model_name}_gender_weights.h5")
             
-            if os.path.exists(weight_path):
-                model.load_weights(weight_path)
-                logger.info(f"Loaded {model_name} from {weight_path}")
+            if os.path.exists(weight_path_new):
+                model.load_weights(weight_path_new)
+                logger.info(f"✅ Loaded {model_name} from {weight_path_new} (Keras 3 format)")
+                self.is_trained = True
+            elif os.path.exists(weight_path_old):
+                model.load_weights(weight_path_old)
+                logger.info(f"✅ Loaded {model_name} from {weight_path_old} (old format)")
                 self.is_trained = True
             else:
-                logger.warning(f"No weights found for {model_name} at {weight_path}")
+                logger.warning(f"❌ No weights found for {model_name} at {weight_path_new} or {weight_path_old}")
         
         if self.is_trained:
             logger.info("Ensemble loaded successfully")

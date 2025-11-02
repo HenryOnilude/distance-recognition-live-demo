@@ -201,7 +201,7 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
     advanced_gender_model.compile_models()
     
     # Step 5: Train each model
-    save_dir = "./gender_models"
+    save_dir = "./weights"
     os.makedirs(save_dir, exist_ok=True)
     
     for model_name, model in advanced_gender_model.models.items():

@@ -257,15 +257,16 @@ class InsightFaceFaceRecognitionSystem:
                 quality_score=quality_score
             )
             
-            # Use ensemble score directly - no inversion needed!
-            # Ensemble encoding: higher score (>=threshold) = Male, lower = Female
-            # Processing encoding: >=0.5 = Male, <0.5 = Female (same as ensemble)
+            # INVERT ensemble score for InsightFace encoding compatibility
+            # Ensemble (CelebA) encoding: 1=Male, 0=Female
+            # InsightFace encoding: 1=Female, 0=Male
+            # Therefore: InsightFace_score = 1.0 - CelebA_score
             gender_score = result['gender_score']
             
             logger.info(f"✅ Advanced Ensemble: {result['gender']} (score={result['gender_score']:.3f}, conf={result['confidence']:.3f})")
             
             return {
-                'gender': gender_score,
+                'gender': 1.0 - gender_score,  # CRITICAL FIX: Invert CelebA → InsightFace encoding
                 'confidence': result['confidence'],
                 'raw_result': result,
                 'method': 'Advanced Ensemble'

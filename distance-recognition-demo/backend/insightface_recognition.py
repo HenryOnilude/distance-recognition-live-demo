@@ -188,10 +188,19 @@ class InsightFaceFaceRecognitionSystem:
             if hasattr(face, 'det_score'):
                 logger.info(f"      - det_score: {face.det_score}")
 
-            # CRITICAL FIX: Check for both 'gender' and 'sex' attributes
-            if hasattr(face, 'gender'):
-                gender_score = face.gender
-                logger.info(f"      - gender attribute: {gender_score} (type: {type(gender_score)})")
+            # Get gender from SCRFD or InsightFace
+            if face_data and 'gender' in face_data:
+                # SCRFD provides gender - it also uses 0=Female, 1=Male
+                raw_gender = face_data['gender']
+                logger.info(f"  - raw gender from SCRFD: {raw_gender} (type: {type(raw_gender)})")
+                
+                # CRITICAL FIX: InsightFace/SCRFD use 0=Female, 1=Male
+                # We need to invert for our system which expects 1=Female, 0=Male
+                if isinstance(raw_gender, (int, np.integer)):
+                    gender_score = 1.0 if raw_gender == 0 else 0.0
+                    logger.info(f"  📝 FIXED encoding: SCRFD {raw_gender} → {gender_score} (converted to 1=Female, 0=Male)")
+                else:
+                    gender_score = float(raw_gender)
             elif hasattr(face, 'sex'):
                 logger.warning("⚠️ 'gender' attribute not found, using 'sex' attribute as fallback")
                 gender_score = face.sex

@@ -439,17 +439,17 @@ class AdvancedGenderModel:
         self.models['resnet'] = self.build_resnet_gender_model()
         # self.models['efficientnet'] = self.build_efficientnet_gender_model()  # Disabled: shape mismatch error
         self.models['mobilenet'] = self.build_mobilenet_gender_model()
-        # self.models['multiscale'] = self.build_multi_scale_gender_model()  # Disabled: poor training performance
+        self.models['multiscale'] = self.build_multi_scale_gender_model()
         
-        # Ensemble weights (renormalized for 2 models)
+        # Ensemble weights (based on trained performance)
         self.ensemble_weights = {
-            'resnet': 0.57,        # 0.40 / 0.70 = 57% (highest accuracy)
+            'resnet': 0.33,        # 95.03% validation accuracy
             # 'efficientnet': 0.25,  # Disabled
-            'mobilenet': 0.43,     # 0.30 / 0.70 = 43% (fast, decent accuracy)
-            # 'multiscale': 0.30     # Disabled: poor training performance (69.6% val accuracy)
+            'mobilenet': 0.33,     # 95.03% validation accuracy
+            'multiscale': 0.34     # 96.27% validation accuracy (best performing)
         }
         
-        logger.info("Ensemble created with 2 models (ResNet + MobileNet)")
+        logger.info("Ensemble created with 3 models (ResNet + MobileNet + MultiScale)")
         
     def compile_models(self):
         """Compile all models with appropriate losses and optimizers"""

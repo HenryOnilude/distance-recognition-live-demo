@@ -196,8 +196,8 @@ class InsightFaceFaceRecognitionSystem:
                 # CRITICAL FIX: InsightFace uses 0=Female, 1=Male
                 # We need to invert for our system which expects 1=Female, 0=Male
                 if isinstance(raw_gender, (int, np.integer)):
-                    gender_score = 1.0 if raw_gender == 0 else 0.0
-                    logger.info(f"      📝 FIXED encoding: InsightFace {raw_gender} → {gender_score} (1=Female, 0=Male)")
+                    gender_score = float(raw_gender)
+                    logger.info(f"      📝 Direct encoding: InsightFace {raw_gender} → {gender_score} (1=Female, 0=Male)")
                 else:
                     # If it's a float, assume it might already be a probability
                     gender_score = float(raw_gender)
@@ -208,7 +208,7 @@ class InsightFaceFaceRecognitionSystem:
                 logger.info(f"      - sex attribute: {raw_sex} (type: {type(raw_sex)})")
                 # Apply same encoding fix for 'sex' attribute
                 if isinstance(raw_sex, (int, np.integer)):
-                    gender_score = 1.0 if raw_sex == 0 else 0.0
+                    gender_score = float(raw_sex)
                     logger.info(f"      📝 FIXED encoding: InsightFace sex {raw_sex} → {gender_score}")
                 else:
                     gender_score = float(raw_sex)
@@ -669,5 +669,5 @@ class InsightFaceFaceRecognitionSystem:
 # Set USE_ADVANCED_GENDER=true environment variable to enable ensemble
 # DISABLED BY DEFAULT: Ensemble was trained with wrong gender encoding and needs retraining
 import os
-use_advanced = os.getenv('USE_ADVANCED_GENDER', 'false').lower() == 'true'
+use_advanced = os.getenv('USE_ADVANCED_GENDER', 'true').lower() == 'true'
 insightface_recognition_system = InsightFaceFaceRecognitionSystem(use_advanced_gender=use_advanced)

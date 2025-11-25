@@ -21,18 +21,15 @@ def estimate_distance_from_face_size(face_bbox: Tuple[int, int, int, int],
     """
     try:
         x, y, w, h = face_bbox
+        image_height, image_width = image_shape
 
-        # Research-based calibration constants
-        AVERAGE_FACE_WIDTH_CM = 14.0  # Average human face width
-        CAMERA_FOCAL_LENGTH_PIXELS = 800  # Typical webcam focal length
+        if w <= 0 or image_width <= 0:
+            return 15.0
+        
+        face_ratio = w / image_width
 
-        # Minimum valid face width to avoid division by zero
-        if w <= 0:
-            return 15.0  # Return maximum distance for invalid faces
+        distance_m = 0.5 + (1.0 - face_ratio) * 9.5
 
-        # Physics-based distance calculation
-        distance_cm = (AVERAGE_FACE_WIDTH_CM * CAMERA_FOCAL_LENGTH_PIXELS) / w
-        distance_m = distance_cm / 100.0
 
         # Clamp to reasonable range based on research
         MIN_DISTANCE = 0.5  # Allow closer distances for portraits (50cm)

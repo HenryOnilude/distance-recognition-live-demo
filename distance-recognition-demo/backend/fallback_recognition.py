@@ -237,7 +237,7 @@ class FallbackRecognitionSystem:
             }
 
     def process_frame_analysis(self, face_bbox: Tuple[int, int, int, int],
-                              face_image, image_shape: Tuple[int, int], full_image=None) -> Dict:
+                              face_image, image_shape: Tuple[int, int], full_image=None, face_data: Optional[Dict] = None) -> Dict:
         """Enhanced frame analysis with real preprocessing + feature-based simulation"""
         start_time = time.time()
 

@@ -136,7 +136,7 @@ class DistanceAwareDataGenerator(keras.utils.Sequence):
         return image
 
 
-def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: int = 32, exclude_used: bool = False, num_samples: int = 10000):
+def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: int = 32, exclude_used: bool = False, num_samples: int = 10000, single_model: str = None):
     """
     Train the advanced gender ensemble
     
@@ -146,6 +146,7 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
         batch_size: Batch size for training
         exclude_used: If True, only use images not previously used
         num_samples: Number of samples to load
+        single_model: If specified, train only this model (resnet/mobilenet/multiscale)
     """
     logger.info("=" * 60)
     logger.info("🚀 TRAINING ADVANCED GENDER ENSEMBLE")
@@ -172,17 +173,21 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
     
     # Extract images and labels
     images = data['images']
-    genders = data['genders']  # 0=Female, 1=Male
+    genders = data['genders']  # Raw: 0=Female, 1=Male from CelebA/InsightFace
+    
+    # CRITICAL FIX: Convert encoding to match our system (1=Female, 0=Male)
+    # This ensures models learn correct associations
+    genders_corrected = 1.0 - genders  # Flip: 0→1, 1→0
+    logger.info("🔧 Applied gender encoding fix: InsightFace (0=F,1=M) → Our system (1=F,0=M)")
     
     logger.info(f"Dataset: {len(images):,} images")
-    logger.info(f"Gender distribution: Female={np.sum(genders==0)}, Male={np.sum(genders==1)}")
+    logger.info(f"Gender distribution BEFORE fix: Female={np.sum(genders==0)}, Male={np.sum(genders==1)}")
+    logger.info(f"Gender distribution AFTER fix: Female={np.sum(genders_corrected==1.0)}, Male={np.sum(genders_corrected==0.0)}")
     
     # Step 2: Split data
-    from sklearn.model_selection import train_test_split
-    
-    X_train, X_val, y_train, y_val = train_test_split(
-        images, genders, test_size=0.2, random_state=42, stratify=genders
-    )
+    split_idx = int(len(images) * 0.8)
+    X_train, X_val = images[:split_idx], images[split_idx:]
+    y_train, y_val = genders_corrected[:split_idx], genders_corrected[split_idx:]
     
     logger.info(f"Train: {len(X_train):,} | Validation: {len(X_val):,}")
     
@@ -200,11 +205,23 @@ def train_ensemble(use_real_data: bool = False, epochs: int = 30, batch_size: in
     advanced_gender_model.create_ensemble()
     advanced_gender_model.compile_models()
     
-    # Step 5: Train each model
+    # Step 5: Train each model (or specific model if --model specified)
     save_dir = "./weights"
     os.makedirs(save_dir, exist_ok=True)
     
-    for model_name, model in advanced_gender_model.models.items():
+    # Determine which models to train
+    if single_model:
+        if single_model in advanced_gender_model.models:
+            models_to_train = {single_model: advanced_gender_model.models[single_model]}
+            logger.info(f"\n🎯 Training ONLY {single_model.upper()} model")
+        else:
+            logger.error(f"❌ Model '{single_model}' not found. Available: {list(advanced_gender_model.models.keys())}")
+            return
+    else:
+        models_to_train = advanced_gender_model.models
+        logger.info(f"\n🎯 Training ALL {len(models_to_train)} models")
+    
+    for model_name, model in models_to_train.items():
         logger.info("\n" + "=" * 60)
         logger.info(f"Training {model_name.upper()} ({model.count_params():,} params)")
         logger.info("=" * 60)
@@ -300,6 +317,9 @@ if __name__ == "__main__":
                        help='Training epochs (default: 20)')
     parser.add_argument('--batch-size', type=int, default=32,
                        help='Batch size (default: 32)')
+    parser.add_argument('--model', type=str, default=None,
+                       choices=['resnet', 'mobilenet', 'multiscale'],
+                       help='Train only specific model (default: train all)')
     parser.add_argument('--continue-training', action='store_true',
                        help='Continue training on unused images')
     parser.add_argument('--num-samples', type=int, default=10000,
@@ -340,5 +360,6 @@ if __name__ == "__main__":
         train_ensemble(
             use_real_data=args.use_real_data,
             epochs=args.epochs,
-            batch_size=args.batch_size
+            batch_size=args.batch_size,
+            single_model=args.model
         )

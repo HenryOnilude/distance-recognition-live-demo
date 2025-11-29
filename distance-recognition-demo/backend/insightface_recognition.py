@@ -597,13 +597,13 @@ class InsightFaceFaceRecognitionSystem:
                 )
                 predictions["gender"]["method"] = "InsightFace SCRFD"
 
-            # Process age prediction
-            predictions["age"] = self.process_age_prediction(
-                insightface_results["age"],
-                insightface_results["confidence"],
-                distance_category,
-                quality_score
-            )
+            # DISABLED: Age prediction removed for privacy and performance
+            # predictions["age"] = self.process_age_prediction(
+            #     insightface_results["age"],
+            #     insightface_results["confidence"],
+            #     distance_category,
+            #     quality_score
+            # )
 
             # Calculate processing time
             processing_time = (time.time() - start_time) * 1000

@@ -42,8 +42,10 @@ export default function ResultsPanel({ result, lastUpdate }: ResultsPanelProps) 
 
   return (
     <div className="space-y-6">
-      {/* Predictions */}
-      {Object.entries(result.predictions).map(([task, prediction]) => (
+      {/* Predictions - Filter out age */}
+      {Object.entries(result.predictions)
+        .filter(([task]) => task !== 'age')
+        .map(([task, prediction]) => (
         <div key={task} className="space-y-2">
           <div className="flex justify-between items-baseline">
             <span className="text-sm text-slate-500 capitalize">{task}</span>

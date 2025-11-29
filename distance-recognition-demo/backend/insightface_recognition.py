@@ -192,38 +192,38 @@ class InsightFaceFaceRecognitionSystem:
             if hasattr(face, 'gender'):
                 raw_gender = face.gender
                 logger.info(f"      - gender attribute: {raw_gender} (type: {type(raw_gender)})")
-                
+
                 # CRITICAL FIX: InsightFace uses 0=Female, 1=Male
-                # We need to invert for our system which expects 1=Female, 0=Male
+                # We need to invert to our system's encoding: 1=Female, 0=Male
                 if isinstance(raw_gender, (int, np.integer)):
-                    gender_score = float(raw_gender)
-                    logger.info(f"      📝 Direct encoding: InsightFace {raw_gender} → {gender_score} (1=Female, 0=Male)")
+                    gender_score = 1.0 - float(raw_gender)  # INVERT: 0→1, 1→0
+                    logger.info(f"      📝 Inverted encoding: InsightFace {raw_gender} → {gender_score} (1=Female, 0=Male)")
                 else:
-                    # If it's a float, assume it might already be a probability
-                    gender_score = float(raw_gender)
-                    logger.info(f"      📊 Float gender value: {gender_score}")
+                    # If it's a float, invert it (0.0→1.0, 1.0→0.0)
+                    gender_score = 1.0 - float(raw_gender)
+                    logger.info(f"      📊 Inverted float: {raw_gender} → {gender_score}")
             elif hasattr(face, 'sex'):
                 logger.warning("⚠️ 'gender' attribute not found, using 'sex' attribute as fallback")
                 raw_sex = face.sex
                 logger.info(f"      - sex attribute: {raw_sex} (type: {type(raw_sex)})")
-                # Apply same encoding fix for 'sex' attribute
+                # Apply same encoding inversion for 'sex' attribute
                 if isinstance(raw_sex, (int, np.integer)):
-                    gender_score = float(raw_sex)
-                    logger.info(f"      📝 FIXED encoding: InsightFace sex {raw_sex} → {gender_score}")
+                    gender_score = 1.0 - float(raw_sex)  # INVERT: 0→1, 1→0
+                    logger.info(f"      📝 Inverted encoding: InsightFace sex {raw_sex} → {gender_score}")
                 else:
-                    gender_score = float(raw_sex)
+                    gender_score = 1.0 - float(raw_sex)
             else:
                 logger.warning("⚠️ Neither 'gender' nor 'sex' attribute found, using neutral value 0.5")
                 gender_score = 0.5
             
-            # Log interpretation
-            # CORRECT ENCODING: InsightFace uses 1=Female, 0=Male
+            # Log interpretation (after inversion)
+            # Our system encoding (after inversion): 1=Female, 0=Male
             if gender_score >= 0.5:
                 interpretation = "Female"
             else:
                 interpretation = "Male"
-            logger.info(f"      - RAW gender_score: {gender_score:.6f} → {interpretation}")
-            logger.info(f"      - InsightFace encoding: 1.0=Female, 0.0=Male")
+            logger.info(f"      - Inverted gender_score: {gender_score:.6f} → {interpretation}")
+            logger.info(f"      - Our system encoding: 1.0=Female, 0.0=Male")
 
             # Calculate confidence based on face quality and detection score
             bbox = face.bbox
@@ -272,17 +272,16 @@ class InsightFaceFaceRecognitionSystem:
                 distance_m=distance_m, 
                 quality_score=quality_score
             )
-            
-            # INVERT ensemble score for InsightFace encoding compatibility
-            # Ensemble (CelebA) encoding: 1=Male, 0=Female
-            # InsightFace encoding: 1=Female, 0=Male
-            # Therefore: InsightFace_score = 1.0 - CelebA_score
+
+            # Ensemble was trained with our system's encoding: 1=Female, 0=Male
+            # (see train_gender_ensemble.py lines 178-181 for the inversion during training)
+            # So we can use the ensemble score directly without inversion
             gender_score = result['gender_score']
-            
+
             logger.info(f"✅ Advanced Ensemble: {result['gender']} (score={result['gender_score']:.3f}, conf={result['confidence']:.3f})")
-            
+
             return {
-                'gender': gender_score,  # CRITICAL FIX: Invert CelebA → InsightFace encoding
+                'gender': gender_score,  # Already in our encoding (1=Female, 0=Male)
                 'confidence': result['confidence'],
                 'raw_result': result,
                 'method': 'Advanced Ensemble'
@@ -312,13 +311,12 @@ class InsightFaceFaceRecognitionSystem:
                 logger.warning(f"Gender/confidence out of range: {gender_score:.3f}, {confidence:.3f}")
                 gender_score = max(0, min(1, gender_score))
                 confidence = max(0, min(1, confidence))
-            # DEBUG: Log raw gender score
-            logger.info(f"RAW GENDER SCORE: {gender_score:.6f}")
-            
-            # CORRECT ENCODING: InsightFace uses 1=Female, 0=Male
-            # Despite what some docs say, empirical testing shows: 1=Female, 0=Male
+            # DEBUG: Log gender score (already inverted to our system's encoding)
+            logger.info(f"GENDER SCORE (after inversion): {gender_score:.6f}")
+
+            # Our system encoding: 1=Female, 0=Male (already inverted from InsightFace)
             raw_predicted_gender = "Female" if gender_score >= 0.5 else "Male"
-            logger.info(f"Using InsightFace encoding (1=Female, 0=Male): score={gender_score:.3f} -> {raw_predicted_gender}")
+            logger.info(f"Using our system encoding (1=Female, 0=Male): score={gender_score:.3f} -> {raw_predicted_gender}")
 
             # Apply InsightFace's inverted encoding
             predicted_gender = raw_predicted_gender

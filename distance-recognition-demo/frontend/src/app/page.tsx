@@ -76,7 +76,9 @@ export default function Home() {
         {/* Stats Bar */}
         <div className="grid grid-cols-3 gap-8 mb-12 pb-12 border-b border-slate-200">
           <div>
-            <p className="text-3xl font-light text-slate-900">97%</p>
+            <p className="text-3xl font-light text-slate-900">
+              {result?.expected_overall_accuracy ? `${(result.expected_overall_accuracy * 100).toFixed(0)}%` : '–'}
+            </p>
             <p className="text-sm text-slate-500 mt-1">Accuracy</p>
           </div>
           <div>

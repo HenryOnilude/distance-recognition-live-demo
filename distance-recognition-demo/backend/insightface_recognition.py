@@ -524,18 +524,7 @@ class InsightFaceFaceRecognitionSystem:
                     # DeepFace expects RGB but we're passing OpenCV's BGR format
                     full_image_rgb = cv2.cvtColor(full_image, cv2.COLOR_BGR2RGB)
                     logger.info("   Converted BGR → RGB for DeepFace")
-                    
-                    # DEBUG: Save images to verify color channels
-                    import os
-                    debug_dir = "debug_images"
-                    os.makedirs(debug_dir, exist_ok=True)
-                    
-                    # Save BGR version (what OpenCV has)
-                    cv2.imwrite(f"{debug_dir}/debug_bgr.jpg", full_image)
-                    # Save RGB version (what DeepFace gets) - need to convert back to BGR for cv2.imwrite
-                    cv2.imwrite(f"{debug_dir}/debug_rgb_as_bgr.jpg", cv2.cvtColor(full_image_rgb, cv2.COLOR_RGB2BGR))
-                    logger.info(f"   DEBUG: Saved images to {debug_dir}/ for inspection")
-                    
+
                     # Analyze with DeepFace (uses VGG-Face backend by default)
                     # Pass full_image for better context
                     result = DeepFace.analyze(

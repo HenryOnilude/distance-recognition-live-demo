@@ -7,7 +7,7 @@ A real-time face recognition system that demonstrates how accuracy degrades with
 - **Distance-Adaptive Recognition**: Accuracy decreases from 89.1% (close) to 72.3% (far)
 - **Real-time Processing**: Live webcam feed analysis
 - **Distance Estimation**: Calculates distance based on face width
-- **Demographic Predictions**: Age, gender, and ethnicity estimation
+- **Demographic Predictions**: Gender estimation with confidence scoring
 - **Performance Visualization**: Shows accuracy expectations by distance range
 
 ## 📊 Performance Model
@@ -21,9 +21,9 @@ A real-time face recognition system that demonstrates how accuracy degrades with
 ## 🏗️ Architecture
 
 ### Backend (Python/FastAPI)
-- **Face Detection**: OpenCV Haar cascades
+- **Face Detection**: InsightFace SCRFD model
 - **Distance Calculation**: Based on 14cm average face width
-- **Accuracy Simulation**: Research-based performance models
+- **Gender Recognition**: Advanced ensemble model with distance-aware confidence
 - **API Endpoint**: `/analyze-frame` for image processing
 
 ### Frontend (React)
@@ -61,7 +61,7 @@ npm run dev
 - **Distance Formula**: `distance = (14cm × focal_length_pixels) / face_width_pixels`
 - **Default Focal Length**: 800 pixels
 - **Minimum Face Size**: 60×60 pixels
-- **Detection Method**: Haar cascade classifiers
+- **Detection Method**: InsightFace SCRFD (State-of-the-art face detection)
 
 ## 🔧 Common Issues
 

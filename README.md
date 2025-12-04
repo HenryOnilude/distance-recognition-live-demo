@@ -10,6 +10,25 @@ A real-time face recognition system that demonstrates how accuracy degrades with
 - **Demographic Predictions**: Gender estimation with confidence scoring
 - **Performance Visualization**: Shows accuracy expectations by distance range
 
+## 🛠️ Tech Stack
+
+### Frontend
+- **Next.js 15.5.4** - React framework with Turbopack for fast builds
+- **React 19.1.0** - UI component library
+- **TypeScript 5** - Type-safe JavaScript
+- **Tailwind CSS 4** - Utility-first CSS framework
+- **Axios 1.12.2** - HTTP client for API requests
+
+### Backend
+- **Python 3.11** - Core programming language
+- **FastAPI** - High-performance web framework
+- **Uvicorn** - ASGI server
+- **InsightFace** - SCRFD face detection model
+- **OpenCV (cv2)** - Computer vision library
+- **NumPy** - Numerical computing
+- **Pillow** - Image processing
+- **Custom Ensemble Model** - ResNet50 + MobileNetV2 + MultiScale CNN for gender recognition
+
 ## 📊 Performance Model
 
 | Distance Range | Overall Accuracy | Use Case |

@@ -62,7 +62,7 @@ export default function ImageUpload({ onImageAnalyze, isProcessing }: ImageUploa
 
       {/* CONDITIONAL RENDER: Show upload zone OR preview */}
       {!preview ? (
-        // ===== UPLOAD DROP ZONE =====
+        //  UPLOAD DROP ZONE 
         <div
           onDrop={handleDrop}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
@@ -82,7 +82,7 @@ export default function ImageUpload({ onImageAnalyze, isProcessing }: ImageUploa
           </div>
         </div>
       ) : (
-        // ===== IMAGE PREVIEW =====
+        //IMAGE PREVIEW 
         <div className="space-y-4">
           <div className="relative bg-black">
             <img

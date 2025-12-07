@@ -35,9 +35,9 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
         setIsActive(true)
         console.log('Camera active!')
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Camera error:', err)
-      setError(err.message)
+      setError(err instanceof Error ? err.message : 'Camera error occurred')
     }
   }
 

@@ -43,7 +43,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://localhost:3001", 
+        "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001"
     ],
@@ -53,9 +53,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("=" * 50)
+    logger.info("🚀 FastAPI application starting...")
+    logger.info(f"System mode: {SYSTEM_MODE}")
+    logger.info("All models loaded successfully!")
+    logger.info("=" * 50)
+
 @app.get("/")
 def root():
     return {"message": "Distance Recognition Live Demo API", "status": "running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "mode": SYSTEM_MODE}
 
 @app.get("/system-info")
 def get_system_info():

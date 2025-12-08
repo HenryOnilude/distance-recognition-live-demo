@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 class InsightFaceFaceRecognitionSystem:
     def __init__(self, use_advanced_gender: bool = False):
         """Initialize InsightFace system with better accuracy for diverse faces"""
-        # Initialize InsightFace app
-        self.app = insightface.app.FaceAnalysis(providers=['CPUExecutionProvider'])
+        # Initialize InsightFace app with buffalo_s (lighter model for memory efficiency)
+        self.app = insightface.app.FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
         self.app.prepare(ctx_id=0, det_size=(640, 640))
         
         # Advanced gender ensemble

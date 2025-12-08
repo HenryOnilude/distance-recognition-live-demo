@@ -19,11 +19,11 @@ class FaceDetector:
     def __init__(self):
         # Initialize SCRFD face detector via InsightFace (state-of-the-art)
         try:
-            # Load SCRFD detector from InsightFace buffalo_l model
-            self.app = FaceAnalysis(providers=['CPUExecutionProvider'])
+            # Load SCRFD detector from InsightFace buffalo_s model (lighter, memory-efficient)
+            self.app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
             self.app.prepare(ctx_id=0, det_size=(640, 640))  # Higher resolution for better distance detection
             self.detector_type = "SCRFD"
-            logger.info("✅ SCRFD Face detector loaded successfully (35% better accuracy at distance)")
+            logger.info("✅ SCRFD Face detector loaded successfully (buffalo_s - memory optimized)")
         except Exception as e:
             # Fallback to OpenCV DNN if SCRFD fails
             logger.warning(f"SCRFD model not available ({e}), falling back to OpenCV DNN")

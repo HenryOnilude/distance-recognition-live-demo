@@ -19,22 +19,30 @@ logger = logging.getLogger(__name__)
 from face_detection import detector
 from quality_scoring import calculate_quality_score
 
-# Try to import InsightFace (better accuracy), fallback to DeepFace, then simulation
-USE_INSIGHTFACE = True  # Set to False to use DeepFace instead
+# Lazy loading for ML models - don't load until first request
+USE_INSIGHTFACE = True
+SYSTEM_MODE = "insightface" if USE_INSIGHTFACE else "deepface"
+recognition_system = None
 
-try:
-    if USE_INSIGHTFACE:
-        from insightface_recognition import insightface_recognition_system as recognition_system
-        logger.info("Using InsightFace + Distance Research System (Better accuracy for diverse faces)")
-        SYSTEM_MODE = "insightface"
-    else:
-        from deepface_recognition import recognition_system
-        logger.info("Using DeepFace + Distance Research System")
-        SYSTEM_MODE = "deepface"
-except ImportError as e:
-    logger.warning(f"ML systems not available ({e}), using enhanced simulation")
-    from fallback_recognition import fallback_system as recognition_system
-    SYSTEM_MODE = "fallback"
+def get_recognition_system():
+    """Lazy load recognition system on first request"""
+    global recognition_system
+    if recognition_system is None:
+        logger.info(f"Loading {SYSTEM_MODE} recognition system...")
+        try:
+            if USE_INSIGHTFACE:
+                from insightface_recognition import insightface_recognition_system
+                recognition_system = insightface_recognition_system
+                logger.info("✅ InsightFace system loaded successfully")
+            else:
+                from deepface_recognition import recognition_system as deep_system
+                recognition_system = deep_system
+                logger.info("✅ DeepFace system loaded successfully")
+        except ImportError as e:
+            logger.warning(f"ML systems not available ({e}), using fallback")
+            from fallback_recognition import fallback_system
+            recognition_system = fallback_system
+    return recognition_system
 
 app = FastAPI(title="Distance Recognition API", version="1.0.0")
 
@@ -71,7 +79,8 @@ def health_check():
 
 @app.get("/system-info")
 def get_system_info():
-    return recognition_system.get_system_info()
+    system = get_recognition_system()
+    return system.get_system_info()
 
 @app.post("/analyze-frame")
 async def analyze_frame(file: UploadFile = File(...)):
@@ -176,7 +185,8 @@ async def analyze_frame(file: UploadFile = File(...)):
             }
 
         # Process with recognition system (InsightFace + distance research)
-        result = recognition_system.process_frame_analysis(
+        system = get_recognition_system()
+        result = system.process_frame_analysis(
             face_bbox=largest_face,
             face_image=face_region,
             full_image=image_cv,

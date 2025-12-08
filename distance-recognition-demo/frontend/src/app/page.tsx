@@ -32,12 +32,13 @@ export default function Home() {
 
   const handleImageCapture = useCallback(async (imageBlob: Blob) => {
     setIsProcessing(true)
-    
+
     try {
       const formData = new FormData()
       formData.append('file', imageBlob, 'webcam-frame.jpg')
 
-      const response = await fetch('http://localhost:8000/analyze-frame', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/analyze-frame`, {
         method: 'POST',
         body: formData,
       })

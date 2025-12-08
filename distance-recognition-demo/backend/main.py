@@ -16,13 +16,23 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from face_detection import detector
 from quality_scoring import calculate_quality_score
 
 # Lazy loading for ML models - don't load until first request
 USE_INSIGHTFACE = True
 SYSTEM_MODE = "insightface" if USE_INSIGHTFACE else "deepface"
 recognition_system = None
+detector = None
+
+def get_detector():
+    """Lazy load face detector on first request"""
+    global detector
+    if detector is None:
+        logger.info("Loading face detector...")
+        from face_detection import detector as face_detector
+        detector = face_detector
+        logger.info("✅ Face detector loaded successfully")
+    return detector
 
 def get_recognition_system():
     """Lazy load recognition system on first request"""
@@ -133,11 +143,12 @@ async def analyze_frame(file: UploadFile = File(...)):
             image_cv = cv2.resize(image_cv, (new_width, new_height), interpolation=cv2.INTER_AREA)
             logger.info(f"Resized to {new_width}x{new_height}")
 
-        # Detect faces using existing face detection
-        detection_result = detector.detect_faces(image_cv)
+        # Detect faces using lazy-loaded face detection
+        face_detector = get_detector()
+        detection_result = face_detector.detect_faces(image_cv)
 
         # Handle both new SCRFD format and legacy format
-        if detector.detector_type == "SCRFD" and isinstance(detection_result, tuple):
+        if face_detector.detector_type == "SCRFD" and isinstance(detection_result, tuple):
             faces, faces_data = detection_result
         else:
             faces = detection_result

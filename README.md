@@ -32,8 +32,8 @@
 <div align="center">
 
 **Upload Interface**
-
-![Homepage](screenshots/homepage.png)
+<img width="1111" height="754" alt="Screenshot 2025-12-10 at 02 31 22" src="https://github.com/user-attachments/assets/3bca23fb-c475-4f76-a6ab-5bed6a232985" />
+<img width="1270" height="727" alt="Screenshot 2025-12-10 at 02 35 54" src="https://github.com/user-attachments/assets/44191ea0-ab0a-41c5-a796-a6ed7025b060" />
 
 **Analysis Results**
 

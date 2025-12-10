@@ -40,6 +40,7 @@ https://github.com/user-attachments/assets/469de057-402d-4a47-8ce4-660d46f3a83e
 
 
 ![Results](screenshots/results.png)
+<img width="1312" height="783" alt="Screenshot 2025-12-10 at 15 03 20" src="https://github.com/user-attachments/assets/511f216d-c9cf-4eb9-8153-5ba46bf158b9" />
 
 **Camera View**
 

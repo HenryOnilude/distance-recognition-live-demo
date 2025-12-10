@@ -17,12 +17,33 @@
 
 ## 📸 Demo
 
-> **[Try the Live Demo →](https://distance-recognition-live-demo.vercel.app/)**
+### 🎥 Live Application
 
-Upload a photo or use your webcam to see real-time distance estimation and face recognition with accuracy predictions based on distance ranges.
+> **[🚀 Try the Live Demo](https://distance-recognition-live-demo.vercel.app/)**
 
-<!-- Add screenshots here -->
-<!-- ![App Screenshot](screenshots/demo.png) -->
+### Demo Video
+
+![Demo](screenshots/demo.gif)
+
+*Real-time face detection, distance estimation, and demographic predictions*
+
+### Screenshots
+
+<div align="center">
+
+**Upload Interface**
+
+![Homepage](screenshots/homepage.png)
+
+**Analysis Results**
+
+![Results](screenshots/results.png)
+
+**Camera View**
+
+![Camera](screenshots/camera.png)
+
+</div>
 
 ---
 

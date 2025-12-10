@@ -44,7 +44,10 @@ https://github.com/user-attachments/assets/469de057-402d-4a47-8ce4-660d46f3a83e
 
 **Camera View**
 
-![Camera](screenshots/camera.png)
+
+https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
+
+
 
 </div>
 

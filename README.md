@@ -54,12 +54,12 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 ## 🎯 Key Features
 
-- ✨ **Distance-Adaptive Recognition**: Accuracy ranges from 89.1% (close) to 72.3% (far)
-- 📹 **Real-time Processing**: Live webcam feed analysis with < 2s response time
-- 📏 **Distance Estimation**: Calculates distance based on facial width using computer vision
-- 👤 **Demographic Predictions**: Gender estimation with confidence scoring
-- 📊 **Performance Visualization**: Interactive display of accuracy expectations by distance
-- 🎨 **Minimalist UI**: Clean, professional interface built with Tailwind CSS
+- **Distance-Adaptive Recognition**: Accuracy ranges from 89.1% (close) to 72.3% (far)
+- **Real-time Processing**: Live webcam feed analysis with < 2s response time
+- **Distance Estimation**: Calculates distance based on facial width using computer vision
+- **Demographic Predictions**: Gender estimation with confidence scoring
+- **Performance Visualization**: Interactive display of accuracy expectations by distance
+- **Minimalist UI**: Clean, professional interface built with Tailwind CSS
 
 ---
 

@@ -121,11 +121,12 @@ async def analyze_frame(file: UploadFile = File(...)):
         if file_ext not in valid_extensions:
             raise HTTPException(status_code=400, detail=f"Invalid file type. Supported: {valid_extensions}")
 
-        # Read and convert image with error handling
+        # FAST DECODE: Read bytes -> Decode directly to BGR
         try:
-            image = Image.open(io.BytesIO(contents))
-            image_np = np.array(image.convert('RGB'))
-            image_cv = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+            nparr = np.frombuffer(contents, np.uint8)
+            image_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if image_cv is None:
+                raise ValueError("Failed to decode image")
         except Exception as img_error:
             raise HTTPException(status_code=400, detail=f"Invalid image file: {str(img_error)}")
 

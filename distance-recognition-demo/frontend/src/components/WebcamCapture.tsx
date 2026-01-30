@@ -64,8 +64,13 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
 
     if (!ctx || video.videoWidth === 0) return
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    // OPTIMIZATION: Resize to 640px (Model native resolution)
+    const scaleFactor = 640 / video.videoWidth
+    const newHeight = video.videoHeight * scaleFactor
+
+    canvas.width = 640
+    canvas.height = newHeight
+
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
     canvas.toBlob((blob) => {
@@ -73,7 +78,7 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
         console.log('Frame captured, blob size:', blob.size, 'bytes')
         onImageCapture(blob)
       }
-    }, 'image/jpeg', 0.8)
+    }, 'image/jpeg', 0.85)
   }
 
   // Auto-capture every 2 seconds when active

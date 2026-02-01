@@ -30,7 +30,14 @@ export default function Home() {
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null)
   const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera')
 
-  const handleImageCapture = useCallback(async (imageBlob: Blob) => {
+  // Handler for WebSocket analysis results (Camera tab)
+  const handleAnalysisResult = useCallback((result: AnalysisResult) => {
+    setResult(result)
+    setLastUpdateTime(new Date())
+  }, [])
+
+  // Handler for HTTP upload (Upload tab)
+  const handleImageUpload = useCallback(async (imageBlob: Blob) => {
     setIsProcessing(true)
 
     try {
@@ -124,9 +131,13 @@ export default function Home() {
               {/* Content */}
               <div className="p-8">
                 {activeTab === 'camera' ? (
-                  <WebcamCapture onImageCapture={handleImageCapture} isProcessing={isProcessing} />
+                  <WebcamCapture
+                    onAnalysisResult={handleAnalysisResult}
+                    isProcessing={isProcessing}
+                    setIsProcessing={setIsProcessing}
+                  />
                 ) : (
-                  <ImageUpload onImageAnalyze={handleImageCapture} isProcessing={isProcessing} />
+                  <ImageUpload onImageAnalyze={handleImageUpload} isProcessing={isProcessing} />
                 )}
               </div>
             </div>

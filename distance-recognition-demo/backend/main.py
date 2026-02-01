@@ -3,7 +3,7 @@ FastAPI server for Distance Recognition Live Demo
 Hybrid DeepFace + Distance Research Integration
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
@@ -217,6 +217,124 @@ async def analyze_frame(file: UploadFile = File(...)):
             "processing_time_ms": round(processing_time, 1),
             "error_type": type(e).__name__
         }
+
+@app.websocket("/ws/analyze-stream")
+async def websocket_analyze_stream(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time frame analysis
+    Protocol:
+    - Client sends: Binary JPEG frame data
+    - Server responds: JSON analysis result
+    - Backpressure: Server processes one frame at a time
+    """
+    await websocket.accept()
+    logger.info("🔌 WebSocket connection established")
+
+    # Pre-load models on first connection to avoid cold start
+    face_detector = get_detector()
+    recognition_sys = get_recognition_system()
+
+    frame_count = 0
+
+    try:
+        while True:
+            # Receive binary frame data from client
+            frame_data = await websocket.receive_bytes()
+            frame_count += 1
+            start_time = time.time()
+
+            try:
+                # Decode JPEG bytes directly to BGR image
+                nparr = np.frombuffer(frame_data, np.uint8)
+                image_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                if image_cv is None:
+                    await websocket.send_json({
+                        "error": "Failed to decode frame",
+                        "frame_count": frame_count
+                    })
+                    continue
+
+                # Detect faces
+                detection_result = face_detector.detect_faces(image_cv)
+
+                # Handle both SCRFD format and legacy format
+                if face_detector.detector_type == "SCRFD" and isinstance(detection_result, tuple):
+                    faces, faces_data = detection_result
+                else:
+                    faces = detection_result
+                    faces_data = None
+
+                if not faces:
+                    processing_time = (time.time() - start_time) * 1000
+                    await websocket.send_json({
+                        "error": "No face detected",
+                        "processing_time_ms": round(processing_time, 1),
+                        "frame_count": frame_count
+                    })
+                    continue
+
+                # Use largest face for analysis
+                largest_face = max(faces, key=lambda f: f[2] * f[3])
+                x, y, w, h = largest_face
+
+                # Get corresponding face data if available
+                largest_face_data = None
+                if faces_data:
+                    for face_data in faces_data:
+                        if face_data['bbox'] == largest_face:
+                            largest_face_data = face_data
+                            break
+
+                # Extract face region
+                face_region = image_cv[y:y+h, x:x+w]
+
+                # Validate face region
+                if face_region.size == 0 or w < 60 or h < 60:
+                    processing_time = (time.time() - start_time) * 1000
+                    await websocket.send_json({
+                        "error": "Face too small for reliable analysis",
+                        "processing_time_ms": round(processing_time, 1),
+                        "face_size": f"{w}x{h}",
+                        "frame_count": frame_count
+                    })
+                    continue
+
+                # Process with recognition system
+                result = recognition_sys.process_frame_analysis(
+                    face_bbox=largest_face,
+                    face_image=face_region,
+                    full_image=image_cv,
+                    image_shape=image_cv.shape[:2],
+                    face_data=largest_face_data
+                )
+
+                # Add frame count for debugging
+                result['frame_count'] = frame_count
+
+                # Send result back to client
+                await websocket.send_json(result)
+
+                logger.info(f"✅ Frame {frame_count} processed in {result.get('processing_time_ms', 0)}ms")
+
+            except Exception as e:
+                processing_time = (time.time() - start_time) * 1000
+                logger.error(f"❌ Error processing frame {frame_count}: {str(e)}")
+                await websocket.send_json({
+                    "error": f"Processing failed: {str(e)}",
+                    "processing_time_ms": round(processing_time, 1),
+                    "frame_count": frame_count,
+                    "error_type": type(e).__name__
+                })
+
+    except WebSocketDisconnect:
+        logger.info(f"🔌 WebSocket disconnected after {frame_count} frames")
+    except Exception as e:
+        logger.error(f"❌ WebSocket error: {str(e)}")
+        try:
+            await websocket.close()
+        except:
+            pass
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,22 +1,108 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 
-interface WebcamCaptureProps {
-  onImageCapture: (imageBlob: Blob) => void
-  isProcessing: boolean
+interface AnalysisResult {
+  success?: boolean
+  processing_time_ms?: number
+  distance_m?: number
+  distance_category?: string
+  quality_score?: number
+  predictions?: any
+  expected_overall_accuracy?: number
+  error?: string
+  frame_count?: number
 }
 
-export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCaptureProps) {
+interface WebcamCaptureProps {
+  onAnalysisResult: (result: AnalysisResult) => void
+  isProcessing: boolean
+  setIsProcessing: (processing: boolean) => void
+}
+
+export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsProcessing }: WebcamCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isActive, setIsActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
+  const [fps, setFps] = useState(0)
+
   const streamRef = useRef<MediaStream | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
+  const lastFrameTimeRef = useRef<number>(0)
+  const frameCountRef = useRef<number>(0)
+
+  // WebSocket connection handler
+  const connectWebSocket = useCallback(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
+
+    console.log('🔌 Connecting to WebSocket:', `${wsUrl}/ws/analyze-stream`)
+    setConnectionStatus('connecting')
+
+    const ws = new WebSocket(`${wsUrl}/ws/analyze-stream`)
+    ws.binaryType = 'arraybuffer'
+
+    ws.onopen = () => {
+      console.log('✅ WebSocket connected')
+      setConnectionStatus('connected')
+      setError(null)
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const result: AnalysisResult = JSON.parse(event.data)
+
+        // Update FPS counter
+        const now = performance.now()
+        if (lastFrameTimeRef.current > 0) {
+          const delta = now - lastFrameTimeRef.current
+          const currentFps = 1000 / delta
+          setFps(Math.round(currentFps * 10) / 10)
+        }
+        lastFrameTimeRef.current = now
+        frameCountRef.current++
+
+        // Pass result to parent
+        onAnalysisResult(result)
+
+        // Clear processing flag to allow next frame
+        setIsProcessing(false)
+
+        console.log(`📊 Frame ${result.frame_count} processed in ${result.processing_time_ms}ms`)
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err)
+        setIsProcessing(false)
+      }
+    }
+
+    ws.onerror = (error) => {
+      console.error('❌ WebSocket error:', error)
+      setError('WebSocket connection error')
+      setConnectionStatus('disconnected')
+    }
+
+    ws.onclose = () => {
+      console.log('🔌 WebSocket closed')
+      setConnectionStatus('disconnected')
+    }
+
+    wsRef.current = ws
+  }, [onAnalysisResult, setIsProcessing])
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    setConnectionStatus('disconnected')
+  }, [])
 
   const startCamera = async () => {
     try {
-      console.log('Starting camera...')
+      console.log('📹 Starting camera...')
       setError(null)
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -33,15 +119,28 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
         videoRef.current.srcObject = stream
         await videoRef.current.play()
         setIsActive(true)
-        console.log('Camera active!')
+        console.log('✅ Camera active!')
+
+        // Connect WebSocket after camera starts
+        connectWebSocket()
       }
     } catch (err) {
-      console.error('Camera error:', err)
+      console.error('❌ Camera error:', err)
       setError(err instanceof Error ? err.message : 'Camera error occurred')
     }
   }
 
   const stopCamera = () => {
+    // Stop animation frame loop
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+
+    // Disconnect WebSocket
+    disconnectWebSocket()
+
+    // Stop camera stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
@@ -52,11 +151,16 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
     }
 
     setIsActive(false)
-    console.log('Camera stopped')
+    setFps(0)
+    frameCountRef.current = 0
+    console.log('⏹️ Camera stopped')
   }
 
-  const captureFrame = () => {
-    if (!videoRef.current || !canvasRef.current || isProcessing || !isActive) return
+  // Capture and send frame via WebSocket with backpressure control
+  const captureAndSendFrame = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current || !wsRef.current) return
+    if (wsRef.current.readyState !== WebSocket.OPEN) return
+    if (isProcessing) return // BACKPRESSURE: Don't send if still processing
 
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -74,25 +178,46 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
     canvas.toBlob((blob) => {
-      if (blob) {
-        console.log('Frame captured, blob size:', blob.size, 'bytes')
-        onImageCapture(blob)
+      if (blob && wsRef.current?.readyState === WebSocket.OPEN) {
+        // Convert blob to ArrayBuffer and send via WebSocket
+        blob.arrayBuffer().then((buffer) => {
+          wsRef.current?.send(buffer)
+          setIsProcessing(true) // Set processing flag for backpressure
+        })
       }
     }, 'image/jpeg', 0.85)
-  }
+  }, [isProcessing, setIsProcessing])
 
-  // Auto-capture every 2 seconds when active
+  // requestAnimationFrame loop for smooth frame capture
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null
-
-    if (isActive && !isProcessing) {
-      interval = setInterval(captureFrame, 2000)
+    if (!isActive || connectionStatus !== 'connected') {
+      return
     }
+
+    let lastCaptureTime = 0
+    const targetFps = 10 // Target 10fps to match backend CPU limit
+    const frameInterval = 1000 / targetFps
+
+    const frameLoop = (timestamp: number) => {
+      if (!isActive) return
+
+      // Throttle to target FPS
+      if (timestamp - lastCaptureTime >= frameInterval) {
+        captureAndSendFrame()
+        lastCaptureTime = timestamp
+      }
+
+      animationFrameRef.current = requestAnimationFrame(frameLoop)
+    }
+
+    animationFrameRef.current = requestAnimationFrame(frameLoop)
 
     return () => {
-      if (interval) clearInterval(interval)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
-  }, [isActive, isProcessing])
+  }, [isActive, connectionStatus, captureAndSendFrame])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -117,10 +242,33 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
           }}
         />
 
+        {/* Status Overlay */}
+        {isActive && (
+          <div className="absolute top-4 left-4 flex gap-2">
+            {/* Connection Status */}
+            <div className={`px-2 py-1 text-xs font-medium rounded ${
+              connectionStatus === 'connected' ? 'bg-green-500/90 text-white' :
+              connectionStatus === 'connecting' ? 'bg-yellow-500/90 text-white' :
+              'bg-red-500/90 text-white'
+            }`}>
+              {connectionStatus === 'connected' ? '🟢 Live' :
+               connectionStatus === 'connecting' ? '🟡 Connecting...' :
+               '🔴 Disconnected'}
+            </div>
+
+            {/* FPS Counter */}
+            {connectionStatus === 'connected' && fps > 0 && (
+              <div className="px-2 py-1 text-xs font-medium bg-blue-500/90 text-white rounded">
+                {fps} FPS
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Processing overlay */}
         {isProcessing && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="text-white text-sm">Processing...</div>
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+            <div className="text-white text-xs">Processing...</div>
           </div>
         )}
       </div>
@@ -129,29 +277,27 @@ export default function WebcamCapture({ onImageCapture, isProcessing }: WebcamCa
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Controls */}
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 flex gap-3 items-center">
         {!isActive ? (
           <button
             onClick={startCamera}
             className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm"
           >
-            Start Camera
+            Start Streaming
           </button>
         ) : (
           <>
             <button
-              onClick={captureFrame}
-              disabled={isProcessing}
-              className="px-6 py-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white text-sm disabled:cursor-not-allowed"
-            >
-              Capture
-            </button>
-            <button
               onClick={stopCamera}
-              className="px-6 py-2 border border-slate-300 hover:bg-slate-50 text-slate-900 text-sm"
+              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm"
             >
-              Stop
+              Stop Streaming
             </button>
+            <div className="text-xs text-slate-500">
+              {connectionStatus === 'connected'
+                ? `Streaming at ~${fps || 10}fps`
+                : 'Connecting to server...'}
+            </div>
           </>
         )}
       </div>

@@ -27,15 +27,73 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
   const [error, setError] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
   const [fps, setFps] = useState(0)
+  const [reconnectAttempt, setReconnectAttempt] = useState(0)
+  const [isReconnecting, setIsReconnecting] = useState(false)
 
   const streamRef = useRef<MediaStream | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const lastFrameTimeRef = useRef<number>(0)
   const frameCountRef = useRef<number>(0)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const shouldReconnectRef = useRef<boolean>(false)
+
+  // Reconnection configuration
+  const MAX_RECONNECT_ATTEMPTS = 10
+  const INITIAL_RECONNECT_DELAY = 1000 // 1 second
+  const MAX_RECONNECT_DELAY = 30000 // 30 seconds
+
+  // Calculate exponential backoff delay
+  const calculateBackoffDelay = (attempt: number): number => {
+    const delay = INITIAL_RECONNECT_DELAY * Math.pow(2, attempt)
+    return Math.min(delay, MAX_RECONNECT_DELAY)
+  }
+
+  // Attempt reconnection with exponential backoff
+  const attemptReconnection = useCallback(() => {
+    // Don't reconnect if we shouldn't or if max attempts reached
+    if (!shouldReconnectRef.current) {
+      console.log('⏸️ Reconnection disabled (camera stopped)')
+      return
+    }
+
+    if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+      console.log('❌ Max reconnection attempts reached')
+      setConnectionStatus('disconnected')
+      setIsReconnecting(false)
+      setError('Connection failed. Please retry manually.')
+      return
+    }
+
+    const delay = calculateBackoffDelay(reconnectAttempt)
+    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempt + 1}/${MAX_RECONNECT_ATTEMPTS})`)
+
+    setIsReconnecting(true)
+    setConnectionStatus('connecting')
+
+    // Clear any existing timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
+
+    // Schedule reconnection
+    reconnectTimeoutRef.current = setTimeout(() => {
+      setReconnectAttempt(prev => prev + 1)
+      connectWebSocket()
+    }, delay)
+  }, [reconnectAttempt, MAX_RECONNECT_ATTEMPTS])
 
   // WebSocket connection handler
   const connectWebSocket = useCallback(() => {
+    // Cleanup: Close existing connection if any
+    if (wsRef.current) {
+      console.log('🧹 Cleaning up existing WebSocket connection')
+      wsRef.current.onclose = null // Remove old event listeners
+      wsRef.current.onerror = null
+      wsRef.current.close()
+      wsRef.current = null
+    }
+
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
     const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://')
 
@@ -49,6 +107,10 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
       console.log('✅ WebSocket connected')
       setConnectionStatus('connected')
       setError(null)
+
+      // Reset reconnection state on successful connection
+      setReconnectAttempt(0)
+      setIsReconnecting(false)
     }
 
     ws.onmessage = (event) => {
@@ -82,22 +144,51 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
       console.error('❌ WebSocket error:', error)
       setError('WebSocket connection error')
       setConnectionStatus('disconnected')
+
+      // Trigger automatic reconnection
+      if (shouldReconnectRef.current) {
+        console.log('🔄 Connection error detected, attempting reconnection...')
+        attemptReconnection()
+      }
     }
 
-    ws.onclose = () => {
-      console.log('🔌 WebSocket closed')
+    ws.onclose = (event) => {
+      console.log('🔌 WebSocket closed', event.code, event.reason)
       setConnectionStatus('disconnected')
+
+      // Only auto-reconnect if it wasn't an intentional disconnect
+      // Code 1000 = normal closure, 1001 = going away
+      if (shouldReconnectRef.current && event.code !== 1000 && event.code !== 1001) {
+        console.log('🔄 Unexpected disconnect, attempting reconnection...')
+        attemptReconnection()
+      }
     }
 
     wsRef.current = ws
-  }, [onAnalysisResult, setIsProcessing])
+  }, [onAnalysisResult, setIsProcessing, attemptReconnection])
 
   const disconnectWebSocket = useCallback(() => {
+    // Clear reconnection timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+
+    // Disable auto-reconnection
+    shouldReconnectRef.current = false
+
+    // Close WebSocket
     if (wsRef.current) {
+      wsRef.current.onclose = null // Prevent reconnection trigger
+      wsRef.current.onerror = null
       wsRef.current.close()
       wsRef.current = null
     }
+
+    // Reset state
     setConnectionStatus('disconnected')
+    setReconnectAttempt(0)
+    setIsReconnecting(false)
   }, [])
 
   const startCamera = async () => {
@@ -121,6 +212,13 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
         setIsActive(true)
         console.log('✅ Camera active!')
 
+        // Enable auto-reconnection
+        shouldReconnectRef.current = true
+
+        // Reset reconnection state
+        setReconnectAttempt(0)
+        setIsReconnecting(false)
+
         // Connect WebSocket after camera starts
         connectWebSocket()
       }
@@ -137,7 +235,7 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
       animationFrameRef.current = null
     }
 
-    // Disconnect WebSocket
+    // Disconnect WebSocket (clears reconnection)
     disconnectWebSocket()
 
     // Stop camera stream
@@ -154,6 +252,16 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
     setFps(0)
     frameCountRef.current = 0
     console.log('⏹️ Camera stopped')
+  }
+
+  // Manual retry function (resets attempts and reconnects)
+  const handleManualRetry = () => {
+    console.log('🔄 Manual retry triggered')
+    setReconnectAttempt(0)
+    setIsReconnecting(false)
+    setError(null)
+    shouldReconnectRef.current = true
+    connectWebSocket()
   }
 
   // Capture and send frame via WebSocket with backpressure control
@@ -222,6 +330,13 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Clear reconnection timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
+
+      // Stop camera and disconnect
       stopCamera()
     }
   }, [])
@@ -248,11 +363,15 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
             {/* Connection Status */}
             <div className={`px-2 py-1 text-xs font-medium rounded ${
               connectionStatus === 'connected' ? 'bg-green-500/90 text-white' :
+              connectionStatus === 'connecting' && isReconnecting ? 'bg-yellow-500/90 text-white' :
               connectionStatus === 'connecting' ? 'bg-yellow-500/90 text-white' :
               'bg-red-500/90 text-white'
             }`}>
               {connectionStatus === 'connected' ? '🟢 Live' :
+               connectionStatus === 'connecting' && isReconnecting ?
+                 `🟡 Reconnecting... (${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})` :
                connectionStatus === 'connecting' ? '🟡 Connecting...' :
+               reconnectAttempt >= MAX_RECONNECT_ATTEMPTS ? '🔴 Connection Failed' :
                '🔴 Disconnected'}
             </div>
 
@@ -293,10 +412,27 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
             >
               Stop Streaming
             </button>
+
+            {/* Manual Retry Button - Shows when max attempts reached */}
+            {connectionStatus === 'disconnected' && reconnectAttempt >= MAX_RECONNECT_ATTEMPTS && (
+              <button
+                onClick={handleManualRetry}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm"
+              >
+                Retry Connection
+              </button>
+            )}
+
             <div className="text-xs text-slate-500">
               {connectionStatus === 'connected'
                 ? `Streaming at ~${fps || 10}fps`
-                : 'Connecting to server...'}
+                : isReconnecting
+                ? `Retrying in ${calculateBackoffDelay(reconnectAttempt - 1)}ms...`
+                : connectionStatus === 'connecting'
+                ? 'Connecting to server...'
+                : reconnectAttempt >= MAX_RECONNECT_ATTEMPTS
+                ? 'Connection failed - click Retry'
+                : 'Disconnected'}
             </div>
           </>
         )}
@@ -304,8 +440,14 @@ export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsPro
 
       {/* Error Display */}
       {error && (
-        <div className="mt-4 p-3 border border-slate-300 text-sm text-slate-900">
-          {error}
+        <div className="mt-4 p-3 border border-red-300 bg-red-50 text-sm text-red-900">
+          <div className="font-medium mb-1">Connection Error</div>
+          <div>{error}</div>
+          {reconnectAttempt >= MAX_RECONNECT_ATTEMPTS && (
+            <div className="mt-2 text-xs text-red-700">
+              Possible causes: Server offline, network issues, or firewall blocking WebSocket connections.
+            </div>
+          )}
         </div>
       )}
     </div>

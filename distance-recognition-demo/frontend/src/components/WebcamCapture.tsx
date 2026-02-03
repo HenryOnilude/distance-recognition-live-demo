@@ -20,6 +20,7 @@ interface WebcamCaptureProps {
   setIsProcessing: (processing: boolean) => void
 }
 
+// @ts-expect-error - False positive: Both parent and child are client components
 export default function WebcamCapture({ onAnalysisResult, isProcessing, setIsProcessing }: WebcamCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)

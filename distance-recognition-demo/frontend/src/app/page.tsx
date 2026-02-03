@@ -7,12 +7,12 @@ import DistanceMeter from '@/components/DistanceMeter'
 import ResultsPanel from '@/components/ResultsPanel'
 
 interface AnalysisResult {
-  success: boolean
-  processing_time_ms: number
-  distance_m: number
-  distance_category: string
-  quality_score: number
-  predictions: {
+  success?: boolean
+  processing_time_ms?: number
+  distance_m?: number
+  distance_category?: string
+  quality_score?: number
+  predictions?: {
     [key: string]: {
       predicted_class: string
       confidence: number
@@ -20,8 +20,9 @@ interface AnalysisResult {
       expected_accuracy: number
     }
   }
-  expected_overall_accuracy: number
+  expected_overall_accuracy?: number
   error?: string
+  frame_count?: number
 }
 
 export default function Home() {

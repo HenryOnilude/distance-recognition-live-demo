@@ -8,14 +8,15 @@ interface Prediction {
 }
 
 interface AnalysisResult {
-  success: boolean
-  processing_time_ms: number
-  distance_m: number
-  distance_category: string
-  quality_score: number
-  predictions: { [key: string]: Prediction }
-  expected_overall_accuracy: number
+  success?: boolean
+  processing_time_ms?: number
+  distance_m?: number
+  distance_category?: string
+  quality_score?: number
+  predictions?: { [key: string]: Prediction }
+  expected_overall_accuracy?: number
   error?: string
+  frame_count?: number
 }
 
 interface ResultsPanelProps {
@@ -43,7 +44,7 @@ export default function ResultsPanel({ result, lastUpdate }: ResultsPanelProps) 
   return (
     <div className="space-y-6">
       {/* Predictions - Filter out age */}
-      {Object.entries(result.predictions)
+      {result.predictions && Object.entries(result.predictions)
         .filter(([task]) => task !== 'age')
         .map(([task, prediction]) => (
         <div key={task} className="space-y-2">
@@ -59,7 +60,7 @@ export default function ResultsPanel({ result, lastUpdate }: ResultsPanelProps) 
       ))}
 
       {/* Quality Score */}
-      {result.success && (
+      {result.success && result.quality_score !== undefined && (
         <div className="pt-4 border-t border-slate-200">
           <div className="flex justify-between items-baseline">
             <span className="text-sm text-slate-500">Quality</span>

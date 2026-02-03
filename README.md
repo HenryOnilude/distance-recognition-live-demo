@@ -4,12 +4,12 @@
 
 **Real-time face recognition system demonstrating how accuracy degrades with distance**
 
-[![Live Demo](https://img.shields.io/badge/demo-live-success?style=for-the-badge)](https://distance-recognition-live-demo.vercel.app/)
+[![Live Demo](https://img.shields.io/badge/demo-live-success?style=for-the-badge)](https://synchrocv.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-16.0.7-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.119.0-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Railway](https://img.shields.io/badge/Railway-Deployed-0B0D0E?style=for-the-badge&logo=railway)](https://railway.app/)
 
-[**🚀 Live Demo**](https://distance-recognition-live-demo.vercel.app/) | [**📖 Documentation**](#-tech-stack) | [**🤝 Contributing**](#-contributing)
+[**🚀 Live Demo**](https://synchrocv.com/) | [**📖 Documentation**](#-tech-stack) | [**🤝 Contributing**](#-contributing)
 
 </div>
 
@@ -19,7 +19,7 @@
 
 ### 🎥 Live Application
 
-> **[🚀 Try the Live Demo](https://distance-recognition-live-demo.vercel.app/)**
+> **[🚀 Try the Live Demo](https://synchrocv.com/)**
 
 ### Demo Video
 
@@ -55,9 +55,9 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 ## 🎯 Key Features
 
 - **Distance-Adaptive Recognition**: Accuracy ranges from 89.1% (close) to 72.3% (far)
-- **Real-time Processing**: Live webcam feed analysis with < 2s response time
-- **Distance Estimation**: Calculates distance based on facial width using computer vision
-- **Demographic Predictions**: Gender estimation with confidence scoring
+- **Real-time WebSocket Streaming**: High-performance video inference with <100ms latency
+- **Self-Healing Connectivity**: Automatic connection recovery with exponential backoff strategies for handling network interruptions
+- **Demographic Predictions**: Gender estimation with distance-aware confidence scoring
 - **Performance Visualization**: Interactive display of accuracy expectations by distance
 - **Minimalist UI**: Clean, professional interface built with Tailwind CSS
 
@@ -70,7 +70,7 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 - **[React 19.1.0](https://react.dev/)** - Modern UI component library
 - **[TypeScript 5](https://www.typescriptlang.org/)** - Type-safe JavaScript
 - **[Tailwind CSS 4](https://tailwindcss.com/)** - Utility-first CSS framework
-- **[Axios 1.12.2](https://axios-http.com/)** - HTTP client for API requests
+- **[Native WebSockets](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)** - Bi-directional real-time communication
 
 ### Backend
 - **[Python 3.11](https://www.python.org/)** - Core programming language
@@ -79,7 +79,6 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 - **[InsightFace](https://github.com/deepinsight/insightface)** - SCRFD face detection model (buffalo_s)
 - **[TensorFlow 2.19.0](https://www.tensorflow.org/)** - Machine learning framework
 - **[OpenCV](https://opencv.org/)** - Computer vision library
-- **[NumPy](https://numpy.org/)** - Numerical computing
 
 ### Deployment
 - **[Vercel](https://vercel.com/)** - Frontend hosting with automatic deployments
@@ -92,9 +91,9 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 | Distance Range | Overall Accuracy | Typical Use Case |
 |----------------|------------------|------------------|
-| 2-4m (Close)   | **89.1%**        | Security checkpoints, access control |
-| 4-7m (Medium)  | **82.3%**        | Retail monitoring, customer analytics |
-| 7-10m (Far)    | **72.3%**        | Crowd surveillance, public safety |
+| 2-4m (Close)   | **89.1%** | Security checkpoints, access control |
+| 4-7m (Medium)  | **82.3%** | Retail monitoring, customer analytics |
+| 7-10m (Far)    | **72.3%** | Crowd surveillance, public safety |
 
 ---
 
@@ -102,19 +101,21 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Frontend (Next.js)                   │
+│                    Frontend (Next.js)                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   Webcam     │  │  Image       │  │   Results    │      │
-│  │   Capture    │  │  Upload      │  │   Display    │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└────────────────────────────┬────────────────────────────────┘
-                             │ HTTPS/REST API
-                             ▼
+│  │   Webcam     │  │    Image     │  │   Results    │      │
+│  │   Stream     │  │   Upload     │  │   Display    │      │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────┘      │
+└─────────│──────────────────│────────────────────────────────┘
+          │                  │
+          │ WebSocket        │ HTTPS/REST
+          │ (Streaming)      │ (Static Upload)
+          ▼                  ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      Backend (FastAPI)                       │
+│                    Backend (FastAPI)                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   SCRFD      │→ │  Distance    │→ │   Gender     │      │
-│  │ Detection    │  │ Estimation   │  │ Recognition  │      │
+│  │    SCRFD     │→ │   Distance   │→ │    Gender    │      │
+│  │  Detection   │  │  Estimation  │  │ Recognition  │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -123,8 +124,8 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 **Face Detection**: InsightFace SCRFD model for state-of-the-art face detection
 **Distance Calculation**: Based on 14cm average face width using pinhole camera model
-**Gender Recognition**: Advanced ensemble model with distance-aware confidence
-**API Endpoint**: `/analyze-frame` for image processing with quality scoring
+**Resilient Network Layer**: Custom hook implementing exponential backoff (1s, 2s, 4s...) to gracefully handle server restarts or network drops
+**API Endpoint**: Dual-protocol architecture supporting both WebSocket streaming (live) and REST (static upload)
 
 ---
 
@@ -175,15 +176,25 @@ Frontend will be available at `http://localhost:3000`
 
 ---
 
-## 📡 API Reference
+## 📡 API & Protocol Reference
 
-### `POST /analyze-frame`
+### 1. Real-time Streaming (WebSocket)
 
-Analyze an image for face recognition and distance estimation.
+**Endpoint:** `ws://<host>/ws/analyze-stream`
+
+Designed for high-throughput live video inference.
+
+- **Client:** Sends binary JPEG frames
+- **Server:** Returns JSON analysis of the frame including bounding boxes and demographics
+- **Recovery:** Frontend automatically attempts reconnection with exponential backoff (1s → 30s max)
+
+### 2. Static Analysis (REST)
+
+**Endpoint:** `POST /analyze-frame`
 
 **Request:**
 - **Content-Type:** `multipart/form-data`
-- **Body:** Image file (JPEG, PNG, WebP, BMP)
+- **Body:** Image file (JPEG, PNG, WebP)
 
 **Response:**
 ```json
@@ -196,24 +207,9 @@ Analyze an image for face recognition and distance estimation.
   "predictions": {
     "gender": {
       "predicted_class": "male",
-      "confidence": 0.92,
-      "decision": "high_confidence",
-      "expected_accuracy": 0.891
+      "confidence": 0.92
     }
-  },
-  "expected_overall_accuracy": 0.891
-}
-```
-
-### `GET /health`
-
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "mode": "insightface"
+  }
 }
 ```
 
@@ -232,6 +228,7 @@ distance = (14cm × focal_length_pixels) / face_width_pixels
 - **Detection Model**: InsightFace SCRFD buffalo_s (memory-optimized)
 - **Max Image Size**: 4096×4096 pixels (auto-resized)
 - **Processing Timeout**: 60 seconds
+- **WebSocket Reconnection**: 10 attempts with exponential backoff (max 30s delay)
 
 ---
 
@@ -249,6 +246,7 @@ distance = (14cm × focal_length_pixels) / face_width_pixels
 # Railway deploys from Dockerfile
 # Set root directory to: distance-recognition-demo/backend
 # Port: 8000
+# WebSocket support: Enabled by default
 ```
 
 ---
@@ -271,9 +269,14 @@ distance = (14cm × focal_length_pixels) / face_width_pixels
 - **CORS errors**: Check `allow_origin_regex` in `main.py` includes your frontend URL
 
 ### Frontend Issues
-- **"Failed to connect"**: Verify `NEXT_PUBLIC_API_URL` environment variable is set
+- **"Reconnecting..." Loop**: Backend may be waking up from sleep (Railway free tier) - wait up to 3 minutes for automatic reconnection
 - **Camera not working**: Grant browser permissions for camera access
 - **Build errors**: Ensure Node.js 18+ and compatible Next.js version
+
+### WebSocket Issues
+- **Connection Failed**: Check if backend WebSocket endpoint is accessible at `/ws/analyze-stream`
+- **Frequent Disconnects**: Network instability - automatic reconnection will handle this
+- **Max Retries Reached**: Click "Retry Connection" button or check backend logs
 
 ---
 

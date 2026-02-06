@@ -92,6 +92,18 @@ def get_system_info():
     system = get_recognition_system()
     return system.get_system_info()
 
+@app.get("/routes")
+def list_routes():
+    """Debug endpoint to list all registered routes"""
+    routes = []
+    for route in app.routes:
+        routes.append({
+            "path": route.path,
+            "name": route.name,
+            "methods": getattr(route, 'methods', ['WEBSOCKET' if 'websocket' in route.path else 'N/A'])
+        })
+    return {"routes": routes}
+
 @app.post("/analyze-frame")
 async def analyze_frame(file: UploadFile = File(...)):
     """Analyze uploaded image using hybrid DeepFace + distance research system"""

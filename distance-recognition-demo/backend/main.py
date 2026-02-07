@@ -63,7 +63,9 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001"
+        "http://127.0.0.1:3001",
+        "https://synchrocv.com",  # Custom domain
+        "http://synchrocv.com"    # HTTP variant
     ],
     allow_origin_regex="https://.*\.vercel\.app",  # Allow all Vercel deployments
     allow_credentials=True,

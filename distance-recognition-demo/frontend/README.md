@@ -44,6 +44,32 @@ Real-time face detection, distance estimation, and demographic predictions
 - **Railway** - Backend containerization & hosting
 - **Docker** - Containerization for consistent deployments
 
+## 🧠 ML Model Training
+
+### Dataset
+- **CelebA** — 202,599 aligned celebrity face images
+- **Labels used:** Binary gender (Male/Female) + age (Young/Old) from 40 attribute annotations
+- **Train/validation split:** 80/20
+
+### Models Trained
+Three gender classification models were trained using transfer learning:
+
+| Model | Architecture | Size | Accuracy (Close) | Accuracy (Far) |
+|---|---|---|---|---|
+| Fast | MobileNetV2 + attention | 22MB | ~85% | ~78% |
+| Accurate | ResNet50 + attention | 238MB | ~90% | ~80% |
+| Ensemble | ResNet50 + MobileNetV2 + VGG16 multi-scale | 513MB | ~91% | ~82% |
+
+### Training Techniques
+- **Transfer Learning:** ImageNet pre-trained backbones with two-phase fine-tuning
+- **ArcFace Loss:** Additive angular margin loss for improved gender discrimination
+- **Focal Loss:** Handles class imbalance by focusing on hard examples
+- **Spatial & Channel Attention:** Learns to focus on gender-discriminative facial regions
+- **Distance Degradation Simulation:** Training augmentation simulating resolution loss, Gaussian blur, and noise at increasing distances to make predictions robust at range
+
+### Why the Accuracy Degrades with Distance
+The accuracy figures in the performance table are derived from model evaluation under simulated distance conditions. As distance increases, face resolution drops, blur increases, and signal quality degrades — the models were explicitly trained and evaluated against these conditions.
+
 ## 📊 Performance Model
 
 | Distance Range | Overall Accuracy | Typical Use Case |

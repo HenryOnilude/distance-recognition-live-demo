@@ -176,6 +176,8 @@ Frontend will be available at `http://localhost:3000`
 
 ---
 
+
+
 ## 📡 API & Protocol Reference
 
 ### 1. Real-time Streaming (WebSocket)
@@ -231,6 +233,21 @@ distance = (14cm × focal_length_pixels) / face_width_pixels
 - **WebSocket Reconnection**: 10 attempts with exponential backoff (max 30s delay)
 
 ---
+
+## ⚠️ Limitations & Design Decisions
+
+### Distance Estimation
+The current implementation uses a heuristic linear ratio (`face_width / image_width → distance`) rather than a full Pinhole Camera Model.
+
+**Why?** A proper implementation requires camera intrinsic calibration (e.g. checkerboard method), which creates high friction for a web demo.
+
+**Trade-off:** Seamless UX over absolute accuracy. The distance metric serves as a visual feedback mechanism to demonstrate low-latency WebSocket transport — not as a production depth sensor.
+
+### Focal Length
+Assumes a static focal length since the browser MediaStream API (`getUserMedia`) does not expose camera intrinsics. Different cameras will affect accuracy.
+
+### Primary Goal
+This project was built to benchmark real-time WebSocket streaming architecture (binary JPEG transport, exponential backoff, backpressure control) — distance estimation is the use case, not the main contribution.
 
 ## 🔧 Deployment
 

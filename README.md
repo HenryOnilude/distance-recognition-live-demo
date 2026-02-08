@@ -1,4 +1,5 @@
 # Distance Recognition Live Demo
+Real-time face recognition system demonstrating how accuracy degrades with distance
 
 <div align="center">
 
@@ -54,12 +55,12 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 ## 🎯 Key Features
 
-- **Distance-Adaptive Recognition**: Accuracy ranges from 89.1% (close) to 72.3% (far)
-- **Real-time WebSocket Streaming**: High-performance video inference with <100ms latency
-- **Self-Healing Connectivity**: Automatic connection recovery with exponential backoff strategies for handling network interruptions
-- **Demographic Predictions**: Gender estimation with distance-aware confidence scoring
-- **Performance Visualization**: Interactive display of accuracy expectations by distance
-- **Minimalist UI**: Clean, professional interface built with Tailwind CSS
+- **Distance-Adaptive Recognition:** Accuracy ranges from 89.1% (close) to 72.3% (far)
+- **Real-time WebSocket Streaming:** High-performance video inference with binary JPEG transport
+- **Self-Healing Connectivity:** Automatic connection recovery with exponential backoff strategies for handling network interruptions
+- **Demographic Predictions:** Gender estimation with distance-aware confidence scoring
+- **Performance Visualization:** Interactive display of accuracy expectations by distance
+- **Minimalist UI:** Clean, professional interface built with Tailwind CSS
 
 ---
 
@@ -120,14 +121,47 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Components
-
-**Face Detection**: InsightFace SCRFD model for state-of-the-art face detection
-**Distance Calculation**: Based on 14cm average face width using pinhole camera model
-**Resilient Network Layer**: Custom hook implementing exponential backoff (1s, 2s, 4s...) to gracefully handle server restarts or network drops
-**API Endpoint**: Dual-protocol architecture supporting both WebSocket streaming (live) and REST (static upload)
+**Components:**
+- **Face Detection:** InsightFace SCRFD model for state-of-the-art face detection
+- **Distance Calculation:** Heuristic linear ratio based on face-to-image width proportion
+- **Resilient Network Layer:** Custom hook implementing exponential backoff (1s, 2s, 4s...) to gracefully handle server restarts or network drops
+- **API Endpoint:** Dual-protocol architecture supporting both WebSocket streaming (live) and REST (static upload)
 
 ---
+
+## 🧠 ML Model Training
+
+### Dataset
+- **CelebA** — 202,599 aligned celebrity face images
+- **Labels used:** Binary gender (Male/Female) + age (Young/Old) from 40 attribute annotations
+- **Train/validation split:** 80/20
+
+### Models Trained
+Three gender classification models were trained using transfer learning:
+
+| Model | Architecture | Size | Accuracy (Close) | Accuracy (Far) |
+|---|---|---|---|---|
+| Fast | MobileNetV2 + attention | 22MB | ~85% | ~78% |
+| Accurate | ResNet50 + attention | 238MB | ~90% | ~80% |
+| Ensemble | ResNet50 + MobileNetV2 + VGG16 multi-scale | 513MB | ~91% | ~82% |
+
+### Training Techniques
+- **Transfer Learning:** ImageNet pre-trained backbones with two-phase fine-tuning
+- **ArcFace Loss:** Additive angular margin loss for improved gender discrimination
+- **Focal Loss:** Handles class imbalance by focusing on hard examples
+- **Spatial & Channel Attention:** Learns to focus on gender-discriminative facial regions
+- **Distance Degradation Simulation:** Training augmentation simulating resolution loss, Gaussian blur, and noise at increasing distances to make predictions robust at range
+
+### Why the Accuracy Degrades with Distance
+The accuracy figures in the performance table are derived from model evaluation under simulated distance conditions. As distance increases, face resolution drops, blur increases, and signal quality degrades — the models were explicitly trained and evaluated against these conditions.
+
+## 📊 Performance Model
+
+| Distance Range | Overall Accuracy | Typical Use Case |
+|---|---|---|
+| 2-4m (Close) | 89.1% | Security checkpoints, access control |
+| 4-7m (Medium) | 82.3% | Retail monitoring, customer analytics |
+| 7-10m (Far) | 72.3% | Crowd surveillance, public safety | 
 
 ## 🚀 Quick Start
 
@@ -268,6 +302,14 @@ This project was built to benchmark real-time WebSocket streaming architecture (
 
 ---
 
+## 🎛️ Technical Details
+
+### Configuration
+- **Minimum Face Size:** 60×60 pixels
+- **Detection Model:** InsightFace SCRFD buffalo_s (memory-optimized)
+- **Max Image Size:** 4096×4096 pixels (auto-resized)
+- **Processing Timeout:** 60 seconds
+- **WebSocket Reconnection:** 10 attempts with exponential backoff (max 30s delay)
 ## 📈 Use Cases
 
 - **🔒 Security Systems**: Adaptive authentication thresholds based on distance
@@ -281,20 +323,18 @@ This project was built to benchmark real-time WebSocket streaming architecture (
 ## 🐛 Troubleshooting
 
 ### Backend Issues
-- **Models not loading**: Ensure sufficient memory (8GB recommended for production)
-- **Slow first request**: Models download on first API call (~30-60 seconds)
-- **CORS errors**: Check `allow_origin_regex` in `main.py` includes your frontend URL
+- **Models not loading:** Ensure sufficient memory (8GB recommended for production)
+- **Slow first request:** Models download on first API call (~30-60 seconds)
+- **CORS errors:** Check `allow_origins` in main.py includes your frontend URL
 
 ### Frontend Issues
-- **"Reconnecting..." Loop**: Backend may be waking up from sleep (Railway free tier) - wait up to 3 minutes for automatic reconnection
-- **Camera not working**: Grant browser permissions for camera access
-- **Build errors**: Ensure Node.js 18+ and compatible Next.js version
+- **"Reconnecting..." Loop:** Backend may be waking up from sleep (Railway free tier) - wait up to 3 minutes for automatic reconnection
+- **Camera not working:** Grant browser permissions for camera access
 
 ### WebSocket Issues
-- **Connection Failed**: Check if backend WebSocket endpoint is accessible at `/ws/analyze-stream`
-- **Frequent Disconnects**: Network instability - automatic reconnection will handle this
-- **Max Retries Reached**: Click "Retry Connection" button or check backend logs
-
+- **Connection Failed:** Check if backend WebSocket endpoint is accessible at `/ws/analyze-stream`
+- **Frequent Disconnects:** Network instability - automatic reconnection will handle this
+- **Max Retries Reached:** Click "Retry Connection" button or check backend logs
 ---
 
 ## 🤝 Contributing

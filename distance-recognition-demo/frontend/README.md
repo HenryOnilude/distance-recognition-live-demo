@@ -1,37 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Distance Recognition Live Demo
 
-## Getting Started
+A real-time system to estimate the distance of a face from a webcam without using depth sensors (like LiDAR or FaceID).
 
-First, run the development server:
+Live Demo: [synchrocv.com](https://synchrocv.com)
 
+## What It Does
+
+Streams your webcam → Detects faces using InsightFace (SCRFD) → Estimates distance from camera → Updates in real-time (~10fps)
+
+Also supports static image upload via REST API.
+
+## The Stack
+
+- **Frontend:** Next.js 16 (TypeScript + TailwindCSS)
+- **Backend:** FastAPI + InsightFace + OpenCV
+- **Model:** InsightFace buffalo_s with SCRFD face detector
+- **Transport:** Native WebSockets (binary JPEG streaming)
+- **Deployment:** Vercel (frontend) + Railway (backend)
+
+## Technical Highlights
+
+- Self-healing WebSocket with exponential backoff (1s → 30s)
+- Backpressure control (doesn't flood server with frames)
+- Dual-protocol architecture (WebSocket for streaming, REST for uploads)
+- SCRFD face detection with landmark analysis
+
+## Performance
+
+- Inference: ~1.5s per frame (Railway CPU)
+- Accuracy: 2-10m range (89% at 2-4m, 72% at 7-10m)
+
+## Limitations & Design Decisions
+
+### Distance Estimation
+The current implementation uses a heuristic linear ratio (face_width / image_width → distance) rather than a full Pinhole Camera Model.
+
+**Why?** A proper implementation requires camera intrinsic calibration (e.g. checkerboard method), which creates high friction for a web demo.
+
+**Trade-off:** Seamless UX over absolute accuracy. The distance metric serves as a visual feedback mechanism to demonstrate low-latency WebSocket transport — not as a production depth sensor.
+
+### Focal Length
+Assumes a static focal length since the browser MediaStream API (getUserMedia) does not expose camera intrinsics. Different cameras will affect accuracy.
+
+### Primary Goal
+This project was built to benchmark real-time WebSocket streaming architecture (binary JPEG transport, exponential backoff, backpressure control) — distance estimation is the use case, not the main contribution.
+
+## Local Development
+
+**Backend:**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd backend
+source venv/bin/activate
+python main.py
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open [http://localhost:3000](http://localhost:3000)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+Create `frontend/.env.local`:
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# Updated Fri Feb  6 23:16:04 GMT 2026
+For production, set `NEXT_PUBLIC_API_URL` in your Vercel environment variables.

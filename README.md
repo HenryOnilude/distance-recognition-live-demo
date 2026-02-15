@@ -60,7 +60,7 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 ---
 
-## 📊 Performance Model
+## 📊 Empirical Validation Results
 
 | Distance Range | Overall Accuracy | Typical Use Case |
 |----------------|------------------|------------------|
@@ -81,7 +81,7 @@ The [Media Capture and Streams API](https://www.w3.org/TR/mediacapture-streams/)
 - **Lens distortion coefficients** — radial and tangential distortion parameters
 - **Sensor dimensions** — physical pixel pitch
 
-Without these, the standard distance formula $d = \frac{W_{real} \cdot f}{W_{pixels}}$ cannot be accurately computed. The only path to true calibration is a **checkerboard calibration step** — the user holds a printed pattern at multiple angles while the system solves for intrinsics via `cv2.calibrateCamera()`.
+Without these, the standard Pinhole Camera Model — $D = (f \cdot W) / w$ — cannot be accurately computed. The only path to true calibration is a **checkerboard calibration step** — the user holds a printed pattern at multiple angles while the system solves for intrinsics via `cv2.calibrateCamera()`.
 
 ### The Strategic Decision
 

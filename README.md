@@ -62,6 +62,8 @@ https://github.com/user-attachments/assets/454423d9-5179-4913-9259-1443689bd5fc
 
 ## 📊 Empirical Validation Results
 
+Evaluated on a held-out CelebA validation set (20% split, ~40,500 images) under simulated distance degradation matching the training augmentation pipeline.
+
 | Distance Range | Overall Accuracy | Typical Use Case |
 |----------------|------------------|------------------|
 | 2–4m (Close)   | **89.1%** | Security checkpoints, access control |
@@ -212,6 +214,34 @@ The multi-scale model processes the face at three resolutions simultaneously (22
 
 ---
 
+## 🔬 Critical Engineering Discovery: The Full-Image Requirement
+
+During development, gender predictions were returning **Female with 100% confidence** for clearly male subjects. The model appeared broken — but only when faces were tightly cropped.
+
+**Root cause:** InsightFace's `genderage` model is not a pure facial geometry classifier. It relies on **contextual cues** — hair length, shoulder width, clothing patterns, neck proportions — to make gender predictions. When the input is a tightly cropped face bounding box, these cues are stripped away, and the model defaults to high-confidence incorrect predictions.
+
+**The fix:**
+
+```python
+# ❌ BEFORE: Cropped face → silent misclassification
+insightface_results = self.get_insightface_predictions(preprocessed_face)
+
+# ✅ AFTER: Full image with context → accurate predictions
+# CRITICAL: Genderage model needs hair/clothing/shoulders context
+insightface_results = self.get_insightface_predictions(full_image)
+```
+
+**Why this matters:** This behavior is not documented in InsightFace's API. The model accepts cropped faces without error, returns high confidence scores, and silently produces wrong results. Discovering this required:
+
+1. Observing systematic misclassification in live testing
+2. Isolating the variable (cropped vs. full image input)
+3. Hypothesizing that the model uses non-facial context
+4. Validating across multiple subjects and distances
+
+This is the kind of failure mode that doesn't appear in benchmarks or tutorials — it only surfaces when you deploy a model in a real pipeline and observe its behavior empirically.
+
+---
+
 ## ⚡ High-Performance Transport Layer
 
 ### Binary WebSocket Transport
@@ -356,6 +386,20 @@ Designed for high-throughput live video inference.
 ### Q: Why lazy-load ML models instead of loading at startup?
 
 **A:** Railway's free tier sleeps containers after inactivity. If models load at startup (30–60 seconds for InsightFace + TensorFlow), the health check times out and Railway kills the container — creating a restart loop. Lazy loading means the server starts in ~2 seconds, passes health checks immediately, and loads models on the first actual analysis request. This is the same singleton pattern used in production ML serving (AWS Lambda, Cloud Run).
+
+---
+
+## 🔮 What I'd Do Differently
+
+This project makes deliberate trade-offs for zero-friction web deployment. With more time or different constraints, these are the extensions I'd pursue:
+
+- **True Depth Sensing via WebXR Device API** — The [WebXR Device API](https://www.w3.org/TR/webxr/) is beginning to expose depth data on supported devices. As browser support matures, this would replace the heuristic with actual depth measurements — no calibration required, no privacy violation, and sub-centimeter accuracy on compatible hardware.
+
+- **Model Distillation** — The multi-scale ensemble (513MB) is a research artifact. For production edge deployment, I'd distill it into a single MobileNetV2-based student model (<50MB) using knowledge distillation, accepting the ~6% accuracy trade-off for a 10× reduction in memory and inference time.
+
+- **Multi-Face Tracking with Per-Identity Confidence Histories** — Currently, each frame is processed independently. Tracking faces across frames with a simple Kalman filter would enable temporal confidence smoothing — a prediction that's uncertain on frame N but consistent across frames N-1 through N+5 can be promoted to high confidence.
+
+- **Federated Calibration** — Crowdsource camera intrinsics anonymously. If 1,000 users with iPhone 14s use the system, aggregate their face-size-to-distance ratios to build a per-device-model calibration table — no individual calibration step, but progressively better distance estimates over time.
 
 ---
 

@@ -17,7 +17,7 @@
 
 ## The Problem
 
-Face recognition achieves 99%+ accuracy in controlled lab environments — fixed cameras, calibrated lenses, cooperative subjects at arm's length. Deploy the same system through a browser, on an unknown webcam, at variable distances, and accuracy collapses. The W3C Media Capture specification intentionally obscures the hardware parameters needed to compensate.
+Face recognition achieves 99%+ accuracy in controlled lab environments fixed cameras, calibrated lenses, cooperative subjects at arm's length. Deploy the same system through a browser, on an unknown webcam, at variable distances, and accuracy collapses. The W3C Media Capture specification intentionally obscures the hardware parameters needed to compensate.
 
 This project is a case study in navigating that constraint: delivering real-time biometric analysis with **honest, distance-aware confidence scoring** through a zero-friction web interface.
 
